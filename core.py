@@ -87,6 +87,8 @@ def scattering(
     Returns
     -------
     v1, v2: post-collision velocities
+    number_of_collision: integer 
+        number of reactions during dt
     """
     n = u1.shape[0]
     # velocity in the center-of-mass system
@@ -109,9 +111,10 @@ def scattering(
     # compute if this scattering happens during dt
     uni = rng.uniform(0, 1, size=n)
     probability = differential_crosssection.total_crosssection(speed_rel) * speed_rel * density * dt
-    v1 = np.where((probability > uni)[:, np.newaxis], v1, u1)
-    v2 = np.where((probability > uni)[:, np.newaxis], v2, u2)
-    return v1, v2
+    flag_collided = (probability > uni)[:, np.newaxis]
+    v1 = np.where(flag_collided, v1, u1)
+    v2 = np.where(flag_collided, v2, u2)
+    return v1, v2, np.sum(flag_collided)
 
 
 class BoltzmannBase:
