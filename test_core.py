@@ -60,7 +60,7 @@ def test_scattering_conservation(m1, m2):
         dt=1e4,
     )
 
-    # total energy should be the same
+    # total energy should be the conserved
     before = 0.5 * m1 * np.sum(u1 ** 2, axis=-1) + 0.5 * m2 * np.sum(u2 ** 2, axis=-1)
     after = 0.5 * m1 * np.sum(v1 ** 2, axis=-1) + 0.5 * m2 * np.sum(v2 ** 2, axis=-1)
     assert np.allclose(before, after)
@@ -96,6 +96,26 @@ def test_optimize_dt():
         dt_results.append(dt)
 
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
+
+
+def test_boltzman_mixture():
+    model = core.BoltzmannMixture(
+        n=1000, m1=1.0, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    )
+    result = model.compute(0.01, 100.0, 0.5, nsamples=1000, thin=1, burnin=5000)
+
+    vsq = np.sum(result ** 2, axis=-1)
+
+    """
+    import matplotlib.pyplot as plt
+
+    _ = plt.hist(np.log10(vsq[:330].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[330:660].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[660:].ravel()), bins=51, alpha=0.5)
+    plt.yscale('log')
+    plt.grid()
+    plt.show()
+    """
 
 
 def test_boltzman_nonlinear():

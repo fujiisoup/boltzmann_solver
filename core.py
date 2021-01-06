@@ -50,8 +50,8 @@ class DifferentialCrossSection:
         diffpart = np.zeros_like(theta)
         for i, coef in enumerate(self.legendre_coefs):
             pol = special.legendre(i)
-            diffpart += coef * np.poly1d(pol)(np.cos(theta)) ** 2
-        return diffpart
+            diffpart += coef * pol(np.cos(theta))
+        return diffpart ** 2
 
     def total_crosssection(self, v):
         r"""
@@ -144,37 +144,6 @@ def optimize_dt(u1, u2, diffsigma, dt_init, rng, change_rate=1.2, target_fractio
     return dt_init
 
 
-class BoltzmannBase:
-    r"""
-    A class for 0d-Boltzmann equation based on monte-carlo integration
-    """
-
-    def __init__(self, n, seed=0):
-        r"""
-        n: number of particles
-        """
-        # velocity of each particles
-        self.v = np.zeros((n, 3))
-        self.n = n
-        self.rng = np.random.RandomState(seed)
-
-    def update(self, dt, m=1):
-        r"""
-        update the collision term
-        """
-        # choose a pair of particles at random
-        i0, i1 = self.rng(self.n, (2, m), replace=False)
-        # the relative velocity of the selected pairs
-        vrel = self.v[i0] - self.v[i1]
-
-    def crosssection(self, v):
-        r"""
-        An abstract method for collision operator.
-        
-        """
-        raise NotImplementedError
-
-
 def thermal_distribution(n, m, T, rng):
     r"""
     Construct the thermal velocity distribution
@@ -192,7 +161,16 @@ def thermal_distribution(n, m, T, rng):
     return rng.randn(n, 3) * np.sqrt(T / m)
 
 
-class BoltzmannLinear(BoltzmannBase):
+class BotlzmannBase:
+    def __init__(self, n, lam, legendre_coefs, T=1.0, seed=0):
+        self.n = int(n / 2) * 2
+        self.rng = np.random.RandomState(0)
+        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
+        self.index = np.arange(n)
+        self.T = T
+
+
+class BoltzmannLinear(BotlzmannBase):
     r"""
     A solver for the linear boltzmann's equation, where test particles (with mass m1) 
     collides only with heavier particles (with mass m2).
@@ -211,12 +189,9 @@ class BoltzmannLinear(BoltzmannBase):
         T: float
             temperature of the heavier particles. In the unit of energy
         """
-        self.n = n
-        self.T = T
+        super().__init__(n, lam, legendre_coefs, T, seed)
         self.m1 = m1
         self.m2 = m2
-        self.rng = np.random.RandomState(0)
-        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
         # initialize with the thermal distribution
         self.v1 = thermal_distribution(n, m1, T, self.rng)
         self.v2 = thermal_distribution(n, m2, T, self.rng)
@@ -260,9 +235,13 @@ class BoltzmannLinear(BoltzmannBase):
                     target_fraction=0.3,
                 )
                 n_heating_rate = dt * heating_rate * self.n
-            n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
 
-            # randomly choose the heating ones
+            if n_heating_rate < 10:  # if small use the probabilistic method
+                n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
+            else:
+                n_heating = np.minimum(int(n_heating_rate), self.n)
+
+            # randomly choose the heated particles
             self.rng.shuffle(index)
             self.v1[index[:n_heating]] = thermal_distribution(
                 n_heating, self.m1, heating_temperature, self.rng
@@ -283,7 +262,7 @@ class BoltzmannLinear(BoltzmannBase):
         return np.array(histogram)
 
 
-class BoltzmannNonlinear(BoltzmannBase):
+class BoltzmannNonlinear(BotlzmannBase):
     r"""
     A solver for the nonlinear boltzmann's equation, where test particles (with mass m) 
     collides only with the same-kind particles.
@@ -301,11 +280,8 @@ class BoltzmannNonlinear(BoltzmannBase):
         T: float
             initial temperature. In the unit of energy
         """
-        self.n = int(n / 2) * 2
-        self.T = T
+        super().__init__(n, lam, legendre_coefs, T, seed)
         self.m = m
-        self.rng = np.random.RandomState(0)
-        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
         # initialize with the thermal distribution
         self.v = thermal_distribution(n, m, T, self.rng)
 
@@ -354,9 +330,13 @@ class BoltzmannNonlinear(BoltzmannBase):
                     target_fraction=0.3,
                 )
                 n_heating_rate = dt * heating_rate * self.n
-            n_heating = np.minimum(self.rng.poisson(n_heating_rate), nhalf)
 
-            # randomly choose the heated ones
+            if n_heating_rate < 10:  # if small use the probabilistic method
+                n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
+            else:
+                n_heating = np.minimum(int(n_heating_rate), self.n)
+
+            # randomly choose the heated particles
             self.rng.shuffle(index)
             self.v[index[:n_heating]] = thermal_distribution(
                 n_heating, self.m, heating_temperature, self.rng
@@ -375,4 +355,111 @@ class BoltzmannNonlinear(BoltzmannBase):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v))
+        return np.array(histogram)
+
+
+class BoltzmannMixture(BoltzmannLinear):
+    def compute(
+        self,
+        heating_rate,
+        heating_temperature,
+        mixture,
+        nsamples=1000,
+        thin=1,
+        burnin=1000,
+    ):
+        r"""
+        Compute the model.
+
+        Parameters
+        ----------
+        heating_rate: float
+            rate of the additional heating for the particle 1
+        heating_temperature: float
+            temperature of the additional heating.
+        mixture: float in [1, 0]
+            mixture rate of the test among all the particles.
+            If mixture == 1, then pure test particles are assumed (but the energy will diverge)
+        
+        nsamples: integer
+            number of samples to be stored
+        thin: integer
+            number of skip
+        burnin: integer:
+            number of samples to be used to make the system in the equilibrium
+        """
+        index = np.arange(self.n)
+        nhalf = int(self.n / 2)
+
+        histogram = []
+        test_density = mixture
+        bath_density = 1.0 - mixture
+
+        for i in range(-burnin, nsamples * thin):
+            if i in [-burnin, 0]:
+                # compute the time step
+                # compute dt from collisions with heat-bath particles
+                self.rng.shuffle(index)
+                u1 = self.v1[index]
+                u2 = self.v2[index]
+                dt_bath = optimize_dt(
+                    u1,
+                    u2,
+                    self.diffsigma,
+                    bath_density,
+                    self.rng,
+                    change_rate=1.2,
+                    target_fraction=0.3,
+                )
+                # compute dt from the collisions among the test particles
+                u1 = self.v1[index[:nhalf]]
+                u2 = self.v1[index[nhalf:]]
+                dt_test = optimize_dt(
+                    u1,
+                    u2,
+                    self.diffsigma,
+                    test_density,
+                    self.rng,
+                    change_rate=1.2,
+                    target_fraction=0.3,
+                )
+
+                # determine dt from the dominant collision
+                dt = np.minimum(dt_test, dt_bath)
+                n_heating_rate = dt * heating_rate * self.n
+
+            if n_heating_rate < 10:  # if small use the probabilistic method
+                n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
+            else:
+                n_heating = np.minimum(int(n_heating_rate), self.n)
+
+            # randomly choose the heated particles
+            self.rng.shuffle(index)
+            self.v1[index[:n_heating]] = thermal_distribution(
+                n_heating, self.m1, heating_temperature, self.rng
+            )
+
+            # collision with the other particles
+            self.rng.shuffle(index)
+            u1 = self.v1[index]
+            u2 = self.v2[index]
+            v1, _, _ = scattering(
+                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, bath_density, dt
+            )
+            self.v1[index] = v1
+            # overwrite v2 by thermal distribution
+            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
+
+            # collision among the test particles
+            self.rng.shuffle(index)
+            u1 = self.v1[index[:nhalf]]
+            u2 = self.v1[index[nhalf:]]
+            v1, v2, _ = scattering(
+                self.m1, u1, self.m1, u2, self.rng, self.diffsigma, test_density, dt
+            )
+            self.v1[index[:nhalf]] = v1
+            self.v1[index[nhalf:]] = v2
+
+            if i > 0 and i % thin == 0:
+                histogram.append(np.copy(self.v1))
         return np.array(histogram)
