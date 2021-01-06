@@ -232,14 +232,17 @@ class BoltzmannLinear(BoltzmannBase):
             number of samples to be used to make the system in the equilibrium
         """
         index = np.arange(self.n)
-        # compute the time step
-        self.rng.shuffle(index)
-        u1 = self.v1[index]
-        u2 = self.v2[index]
-        dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)
-        n_heating = int(dt * heating_rate * self.n)
+        histogram = []
 
-        for _ in range(burnin):
+        for i in range(-burnin, nsamples * thin):
+            if i in [-burnin, 0]:
+                # compute the time step
+                self.rng.shuffle(index)
+                u1 = self.v1[index]
+                u2 = self.v2[index]
+                dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)
+                n_heating = int(dt * heating_rate * self.n)
+
             # randomly choose the heating ones
             self.rng.shuffle(index)
             self.v1[index[:n_heating]] = thermal_distribution(n_heating, self.m1, heating_temperature, self.rng)
@@ -252,28 +255,85 @@ class BoltzmannLinear(BoltzmannBase):
             # overwrite v2 by thermal distribution
             self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
 
-        # Optimize dt again
-        self.rng.shuffle(index)
-        u1 = self.v1[index]
-        u2 = self.v2[index]
-        dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)        
-        n_heating = int(dt * heating_rate * self.n)
-
-        # actual computation 
-        histogram = []       
-        for i in range(nsamples * thin):
-            # randomly choose the heating ones
-            self.rng.shuffle(index)
-            self.v1[index[:n_heating]] = thermal_distribution(n_heating, self.m1, heating_temperature, self.rng)
-
-            self.rng.shuffle(index)
-            u1 = self.v1[index]
-            u2 = self.v2[index]
-            v1, _, _ = scattering(self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt)
-            self.v1[index] = v1
-            # overwrite v2 by thermal distribution
-            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
-
-            if i % thin == 0:
+            if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v1))
         return np.array(histogram)
+
+
+class BoltzmannNonlinear(BoltzmannBase):
+    r"""
+    A solver for the nonlinear boltzmann's equation, where test particles (with mass m) 
+    collides only with the same-kind particles.
+    """
+    def __init__(
+        self, n, m, lam, legendre_coefs, T=1.0, seed=0
+    ):
+        r"""
+        n: integer
+            number of particles to be traced
+        m: float
+            mass of the test and heavier particles
+        lam: float
+
+        legendre_coefs: 1d-array
+        T: float
+            initial temperature. In the unit of energy
+        """
+        self.n = int(n / 2) * 2
+        self.T = T
+        self.m = m
+        self.rng = np.random.RandomState(0)
+        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
+        # initialize with the thermal distribution  
+        self.v = thermal_distribution(n, m, T, self.rng)
+    
+    def compute(
+        self, heating_rate, heating_temperature, cooling_rate,
+        nsamples=1000, thin=1, burnin=1000):
+        r"""
+        Compute the model.
+
+        Parameters
+        ----------
+        heating_rate: float
+            rate of the additional heating for the particle 1
+        heating_temperature: float
+            temperature of the additional heating.
+
+        nsamples: integer
+            number of samples to be stored
+        thin: integer
+            number of skip
+        burnin: integer:
+            number of samples to be used to make the system in the equilibrium
+        """
+        index = np.arange(self.n)
+        nhalf = int(self.n / 2)
+        histogram = []
+        for i in range(-burnin, nsamples * thin):
+            if i in [-burnin, 0]:
+                # compute the time step
+                self.rng.shuffle(index)
+                u1 = self.v[index[:nhalf]]
+                u2 = self.v[index[nhalf:]]
+                dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)        
+                n_heating = int(dt * heating_rate * self.n)
+
+            # randomly choose the heated ones
+            self.rng.shuffle(index)
+            self.v[index[:n_heating]] = thermal_distribution(
+                n_heating, self.m, heating_temperature, self.rng)
+            # cooling
+            self.v = self.v * np.exp(-cooling_rate * dt)
+
+            self.rng.shuffle(index)
+            u1 = self.v[index[:nhalf]]
+            u2 = self.v[index[nhalf:]]
+            v1, v2, _ = scattering(self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt)
+            self.v[index[:nhalf]] = v1
+            self.v[index[nhalf:]] = v2
+            
+            if i > 0 and i % thin == 0:
+                histogram.append(np.copy(self.v))
+        return np.array(histogram)
+    

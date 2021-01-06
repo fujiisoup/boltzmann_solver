@@ -79,6 +79,27 @@ def test_optimize_dt():
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
 
+def test_boltzman_nonlinear():
+    model = core.BoltzmannNonlinear(
+        n=1000, m=1.0,
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    )
+    result = model.compute(
+        0.01, 100.0, 0.05,
+        nsamples=1000, thin=1, burnin=5000)
+    
+    vsq = np.sum(result**2, axis=-1)
+    """
+    import matplotlib.pyplot as plt
+
+    _ = plt.hist(np.log10(vsq[:330].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[330:660].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[660:].ravel()), bins=51, alpha=0.5)
+    plt.yscale('log')
+    plt.grid()
+    plt.show()
+    """
+
 def test_boltzman_linear():
     model = core.BoltzmannLinear(
         n=1000, m1=1.0, m2=2.0, 
@@ -98,3 +119,4 @@ def test_boltzman_linear():
     plt.grid()
     plt.show()
     """
+
