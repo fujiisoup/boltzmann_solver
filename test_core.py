@@ -5,8 +5,8 @@ from . import core
 
 def test_scattering_plot():
     diffsigma = core.DifferentialCrossSection(
-        lam=0, 
-        legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1])
+        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
     # consider the beam configuration
     n = 300
     u1 = np.zeros((n, 3))
@@ -15,8 +15,14 @@ def test_scattering_plot():
     rng = np.random.RandomState(0)
 
     v1, v2, n_collision = core.scattering(
-        m1=1.0, u1=u1, m2=1.0, u2=u2, rng=rng, 
-        differential_crosssection=diffsigma, density=1, dt=1e4
+        m1=1.0,
+        u1=u1,
+        m2=1.0,
+        u2=u2,
+        rng=rng,
+        differential_crosssection=diffsigma,
+        density=1,
+        dt=1e4,
     )
 
     # should be symmetric along x axis
@@ -31,25 +37,32 @@ def test_scattering_plot():
     plt.show()
     """
 
-@pytest.mark.parametrize(('m1', 'm2'), [(1.0, 1.0), (10.0, 1.0)])
+
+@pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
 def test_scattering_conservation(m1, m2):
     diffsigma = core.DifferentialCrossSection(
-        lam=0, 
-        legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1])
+        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
     # random velicity
     n = 300
     rng = np.random.RandomState(0)
     u1 = rng.randn(n, 3)
     u2 = rng.randn(n, 3)
-    
+
     v1, v2, n_collision = core.scattering(
-        m1=m1, u1=u1, m2=m2, u2=u2, rng=rng, 
-        differential_crosssection=diffsigma, density=1, dt=1e4
+        m1=m1,
+        u1=u1,
+        m2=m2,
+        u2=u2,
+        rng=rng,
+        differential_crosssection=diffsigma,
+        density=1,
+        dt=1e4,
     )
 
     # total energy should be the same
-    before = 0.5 * m1 * np.sum(u1**2, axis=-1) + 0.5 * m2 * np.sum(u2**2, axis=-1)
-    after = 0.5 * m1 * np.sum(v1**2, axis=-1) + 0.5 * m2 * np.sum(v2**2, axis=-1)
+    before = 0.5 * m1 * np.sum(u1 ** 2, axis=-1) + 0.5 * m2 * np.sum(u2 ** 2, axis=-1)
+    after = 0.5 * m1 * np.sum(v1 ** 2, axis=-1) + 0.5 * m2 * np.sum(v2 ** 2, axis=-1)
     assert np.allclose(before, after)
     # total momentum should be conserved
     before = m1 * u1 + m2 * u2
@@ -60,8 +73,8 @@ def test_scattering_conservation(m1, m2):
 
 def test_optimize_dt():
     diffsigma = core.DifferentialCrossSection(
-        lam=0, 
-        legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1])
+        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
     # random velicity
     n = 300
     rng = np.random.RandomState(0)
@@ -72,23 +85,26 @@ def test_optimize_dt():
     dt_results = []
     for dt_init in dt_inits:
         dt = core.optimize_dt(
-            u1, u2, diffsigma, dt_init, rng, 
-            change_rate=1.0 + change_rate, target_fraction=0.3)
+            u1,
+            u2,
+            diffsigma,
+            dt_init,
+            rng,
+            change_rate=1.0 + change_rate,
+            target_fraction=0.3,
+        )
         dt_results.append(dt)
-    
+
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
 
 def test_boltzman_nonlinear():
     model = core.BoltzmannNonlinear(
-        n=1000, m=1.0,
-        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
     )
-    result = model.compute(
-        0.01, 100.0, 0.05,
-        nsamples=1000, thin=1, burnin=5000)
-    
-    vsq = np.sum(result**2, axis=-1)
+    result = model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
+
+    vsq = np.sum(result ** 2, axis=-1)
     """
     import matplotlib.pyplot as plt
 
@@ -100,16 +116,14 @@ def test_boltzman_nonlinear():
     plt.show()
     """
 
+
 def test_boltzman_linear():
     model = core.BoltzmannLinear(
-        n=1000, m1=1.0, m2=2.0, 
-        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m1=1.0, m2=2.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
     )
-    result = model.compute(
-        0.1, 100.0, 
-        nsamples=1000, thin=1, burnin=1000)
-    
-    vsq = np.sum(result**2, axis=-1)
+    result = model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
+
+    vsq = np.sum(result ** 2, axis=-1)
 
     """
     import matplotlib.pyplot as plt
@@ -119,4 +133,3 @@ def test_boltzman_linear():
     plt.grid()
     plt.show()
     """
-

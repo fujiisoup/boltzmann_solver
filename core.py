@@ -13,6 +13,7 @@ class DifferentialCrossSection:
 
     where P_k is the legendre function.
     """
+
     def __init__(self, lam, legendre_coefs, m=10000):
         r"""
         lam: scalar
@@ -24,7 +25,7 @@ class DifferentialCrossSection:
         self.legendre_coefs = legendre_coefs
         self.m = m
         self._prepare()
-        
+
     def _prepare(self):
         r"""
         Prepare the interp1d instance, 
@@ -42,14 +43,14 @@ class DifferentialCrossSection:
         # total crossection
         def func(theta):
             return np.sin(theta) * self.differential_part(theta)
-        
+
         self._total_crosssection = integrate.quad(func, 0, np.pi)[0]
-            
+
     def differential_part(self, theta):
         diffpart = np.zeros_like(theta)
         for i, coef in enumerate(self.legendre_coefs):
             pol = special.legendre(i)
-            diffpart += coef * np.poly1d(pol)(np.cos(theta))**2
+            diffpart += coef * np.poly1d(pol)(np.cos(theta)) ** 2
         return diffpart
 
     def total_crosssection(self, v):
@@ -57,7 +58,7 @@ class DifferentialCrossSection:
         Compute the total cross section, by
         \int \sigma(v, \theta) \sin\theta d\theta
         """
-        return self._total_crosssection * v**(-self.lam)
+        return self._total_crosssection * v ** (-self.lam)
 
     def scattering_angle(self, r):
         r"""
@@ -67,23 +68,25 @@ class DifferentialCrossSection:
         return self._cumsum_sigma(r)
 
 
-def flag_scattering(
-    u1, u2, rng, differential_crosssection, density, dt
-):
+def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     r"""
     Compute if the scattering happens during dt
     """
     # relative velocity
     n = u1.shape[0]
     dv = u1 - u2
-    speed_rel = np.sqrt(np.sum(dv**2, axis=-1))
-    probability = differential_crosssection.total_crosssection(speed_rel) * speed_rel * density * dt
+    speed_rel = np.sqrt(np.sum(dv ** 2, axis=-1))
+    probability = (
+        differential_crosssection.total_crosssection(speed_rel)
+        * speed_rel
+        * density
+        * dt
+    )
     uni = rng.uniform(0, 1, size=n)
     return (probability > uni)[:, np.newaxis]
 
-def scattering(
-    m1, u1, m2, u2, rng, differential_crosssection, density, dt
-):
+
+def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     r"""
     Compute the collision process among two particles
 
@@ -114,7 +117,7 @@ def scattering(
     theta = differential_crosssection.scattering_angle(rng.uniform(0, 1, size=n))
     # compute the scattering
     # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
-    rot = Rotation.from_euler('ZX', np.array([phi, theta]).T)
+    rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
     v1_cm = rot.apply(u1_cm)
     v2_cm = rot.apply(u2_cm)
     v1 = v1_cm + vel_cm
@@ -125,21 +128,27 @@ def scattering(
     v2 = np.where(flag, v2, u2)
     return v1, v2, np.sum(flag)
 
+
 def optimize_dt(u1, u2, diffsigma, dt_init, rng, change_rate=1.2, target_fraction=0.3):
     n = len(u1)
     target = n * target_fraction
     n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, 1.0, dt_init))
-    if n_collided < target / change_rate: # dt is too small
-        return optimize_dt(u1, u2, diffsigma, dt_init * change_rate, rng, change_rate, target_fraction)
-    elif n_collided > target * change_rate: # dt is too large
-        return optimize_dt(u1, u2, diffsigma, dt_init / change_rate, rng, change_rate, target_fraction)
-    return dt_init    
+    if n_collided < target / change_rate:  # dt is too small
+        return optimize_dt(
+            u1, u2, diffsigma, dt_init * change_rate, rng, change_rate, target_fraction
+        )
+    elif n_collided > target * change_rate:  # dt is too large
+        return optimize_dt(
+            u1, u2, diffsigma, dt_init / change_rate, rng, change_rate, target_fraction
+        )
+    return dt_init
 
 
 class BoltzmannBase:
     r"""
     A class for 0d-Boltzmann equation based on monte-carlo integration
     """
+
     def __init__(self, n, seed=0):
         r"""
         n: number of particles
@@ -164,7 +173,7 @@ class BoltzmannBase:
         
         """
         raise NotImplementedError
-    
+
 
 def thermal_distribution(n, m, T, rng):
     r"""
@@ -189,9 +198,8 @@ class BoltzmannLinear(BoltzmannBase):
     collides only with heavier particles (with mass m2).
     The velocity of heavier particles does not change during the collision.
     """
-    def __init__(
-        self, n, m1, m2, lam, legendre_coefs, T=1.0, seed=0
-    ):
+
+    def __init__(self, n, m1, m2, lam, legendre_coefs, T=1.0, seed=0):
         r"""
         n: integer
             number of particles to be traced
@@ -209,11 +217,13 @@ class BoltzmannLinear(BoltzmannBase):
         self.m2 = m2
         self.rng = np.random.RandomState(0)
         self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
-        # initialize with the thermal distribution  
+        # initialize with the thermal distribution
         self.v1 = thermal_distribution(n, m1, T, self.rng)
         self.v2 = thermal_distribution(n, m2, T, self.rng)
-    
-    def compute(self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000):
+
+    def compute(
+        self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000
+    ):
         r"""
         Compute the model.
 
@@ -240,17 +250,29 @@ class BoltzmannLinear(BoltzmannBase):
                 self.rng.shuffle(index)
                 u1 = self.v1[index]
                 u2 = self.v2[index]
-                dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)
+                dt = optimize_dt(
+                    u1,
+                    u2,
+                    self.diffsigma,
+                    1.0,
+                    self.rng,
+                    change_rate=1.2,
+                    target_fraction=0.3,
+                )
                 n_heating = int(dt * heating_rate * self.n)
 
             # randomly choose the heating ones
             self.rng.shuffle(index)
-            self.v1[index[:n_heating]] = thermal_distribution(n_heating, self.m1, heating_temperature, self.rng)
+            self.v1[index[:n_heating]] = thermal_distribution(
+                n_heating, self.m1, heating_temperature, self.rng
+            )
 
             self.rng.shuffle(index)
             u1 = self.v1[index]
             u2 = self.v2[index]
-            v1, _, _ = scattering(self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt)
+            v1, _, _ = scattering(
+                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt
+            )
             self.v1[index] = v1
             # overwrite v2 by thermal distribution
             self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
@@ -265,9 +287,8 @@ class BoltzmannNonlinear(BoltzmannBase):
     A solver for the nonlinear boltzmann's equation, where test particles (with mass m) 
     collides only with the same-kind particles.
     """
-    def __init__(
-        self, n, m, lam, legendre_coefs, T=1.0, seed=0
-    ):
+
+    def __init__(self, n, m, lam, legendre_coefs, T=1.0, seed=0):
         r"""
         n: integer
             number of particles to be traced
@@ -284,12 +305,18 @@ class BoltzmannNonlinear(BoltzmannBase):
         self.m = m
         self.rng = np.random.RandomState(0)
         self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
-        # initialize with the thermal distribution  
+        # initialize with the thermal distribution
         self.v = thermal_distribution(n, m, T, self.rng)
-    
+
     def compute(
-        self, heating_rate, heating_temperature, cooling_rate,
-        nsamples=1000, thin=1, burnin=1000):
+        self,
+        heating_rate,
+        heating_temperature,
+        cooling_rate,
+        nsamples=1000,
+        thin=1,
+        burnin=1000,
+    ):
         r"""
         Compute the model.
 
@@ -316,24 +343,34 @@ class BoltzmannNonlinear(BoltzmannBase):
                 self.rng.shuffle(index)
                 u1 = self.v[index[:nhalf]]
                 u2 = self.v[index[nhalf:]]
-                dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)        
+                dt = optimize_dt(
+                    u1,
+                    u2,
+                    self.diffsigma,
+                    1.0,
+                    self.rng,
+                    change_rate=1.2,
+                    target_fraction=0.3,
+                )
                 n_heating = int(dt * heating_rate * self.n)
 
             # randomly choose the heated ones
             self.rng.shuffle(index)
             self.v[index[:n_heating]] = thermal_distribution(
-                n_heating, self.m, heating_temperature, self.rng)
+                n_heating, self.m, heating_temperature, self.rng
+            )
             # cooling
             self.v = self.v * np.exp(-cooling_rate * dt)
 
             self.rng.shuffle(index)
             u1 = self.v[index[:nhalf]]
             u2 = self.v[index[nhalf:]]
-            v1, v2, _ = scattering(self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt)
+            v1, v2, _ = scattering(
+                self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt
+            )
             self.v[index[:nhalf]] = v1
             self.v[index[nhalf:]] = v2
-            
+
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v))
         return np.array(histogram)
-    
