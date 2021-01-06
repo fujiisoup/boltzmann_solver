@@ -4,7 +4,7 @@ from scipy.spatial.transform import Rotation
 
 
 class DifferentialCrossSection:
-    """
+    r"""
     Base class for the differential crosssection.
 
     In this class, we assume that the differential cross section 
@@ -14,7 +14,7 @@ class DifferentialCrossSection:
     where P_k is the legendre function.
     """
     def __init__(self, lam, legendre_coefs, m=10000):
-        """
+        r"""
         lam: scalar
         legendre_coefs: 1d-array
         m: int. default 10000
@@ -26,7 +26,7 @@ class DifferentialCrossSection:
         self._prepare()
         
     def _prepare(self):
-        """
+        r"""
         Prepare the interp1d instance, 
         self._cumsum_sigma
         and the proportional coefficient for the total crosssection
@@ -53,24 +53,38 @@ class DifferentialCrossSection:
         return diffpart
 
     def total_crosssection(self, v):
-        """ 
+        r"""
         Compute the total cross section, by
         \int \sigma(v, \theta) \sin\theta d\theta
         """
         return self._total_crosssection * v**(-self.lam)
 
     def scattering_angle(self, r):
-        """
+        r"""
         Compute the scattering angle based on random variables r, 
         which is in [0, 1]
         """
         return self._cumsum_sigma(r)
 
 
+def flag_scattering(
+    u1, u2, rng, differential_crosssection, density, dt
+):
+    r"""
+    Compute if the scattering happens during dt
+    """
+    # relative velocity
+    n = u1.shape[0]
+    dv = u1 - u2
+    speed_rel = np.sqrt(np.sum(dv**2, axis=-1))
+    probability = differential_crosssection.total_crosssection(speed_rel) * speed_rel * density * dt
+    uni = rng.uniform(0, 1, size=n)
+    return (probability > uni)[:, np.newaxis]
+
 def scattering(
     m1, u1, m2, u2, rng, differential_crosssection, density, dt
 ):
-    """
+    r"""
     Compute the collision process among two particles
 
     Parameters
@@ -93,9 +107,6 @@ def scattering(
     n = u1.shape[0]
     # velocity in the center-of-mass system
     vel_cm = (m1 * u1 + m2 * u2) / (m1 + m2)
-    # relative velocity
-    dv = u1 - u2
-    speed_rel = np.sqrt(np.sum(dv**2, axis=-1))
     u1_cm = u1 - vel_cm
     u2_cm = u2 - vel_cm
     # compute the scattering in the center-of-mass system
@@ -109,29 +120,37 @@ def scattering(
     v1 = v1_cm + vel_cm
     v2 = v2_cm + vel_cm
     # compute if this scattering happens during dt
-    uni = rng.uniform(0, 1, size=n)
-    probability = differential_crosssection.total_crosssection(speed_rel) * speed_rel * density * dt
-    flag_collided = (probability > uni)[:, np.newaxis]
-    v1 = np.where(flag_collided, v1, u1)
-    v2 = np.where(flag_collided, v2, u2)
-    return v1, v2, np.sum(flag_collided)
+    flag = flag_scattering(u1, u2, rng, differential_crosssection, density, dt)
+    v1 = np.where(flag, v1, u1)
+    v2 = np.where(flag, v2, u2)
+    return v1, v2, np.sum(flag)
+
+def optimize_dt(u1, u2, diffsigma, dt_init, rng, change_rate=1.2, target_fraction=0.3):
+    n = len(u1)
+    target = n * target_fraction
+    n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, 1.0, dt_init))
+    if n_collided < target / change_rate: # dt is too small
+        return optimize_dt(u1, u2, diffsigma, dt_init * change_rate, rng, change_rate, target_fraction)
+    elif n_collided > target * change_rate: # dt is too large
+        return optimize_dt(u1, u2, diffsigma, dt_init / change_rate, rng, change_rate, target_fraction)
+    return dt_init    
 
 
 class BoltzmannBase:
-    """
+    r"""
     A class for 0d-Boltzmann equation based on monte-carlo integration
     """
     def __init__(self, n, seed=0):
-        """
+        r"""
         n: number of particles
         """
         # velocity of each particles
         self.v = np.zeros((n, 3))
         self.n = n
-        self.rng = np.random.RandomState(0)
+        self.rng = np.random.RandomState(seed)
 
     def update(self, dt, m=1):
-        """
+        r"""
         update the collision term
         """
         # choose a pair of particles at random
@@ -140,9 +159,121 @@ class BoltzmannBase:
         vrel = self.v[i0] - self.v[i1]
 
     def crosssection(self, v):
-        """
+        r"""
         An abstract method for collision operator.
         
         """
         raise NotImplementedError
     
+
+def thermal_distribution(n, m, T, rng):
+    r"""
+    Construct the thermal velocity distribution
+
+    Parameters
+    ----------
+    n: integer
+        number of particles
+    m: float
+        mass
+    T: float
+        temperature
+    rng: np.random.RandomState
+    """
+    return rng.randn(n, 3) * np.sqrt(T / m)
+
+
+class BoltzmannLinear(BoltzmannBase):
+    r"""
+    A solver for the linear boltzmann's equation, where test particles (with mass m1) 
+    collides only with heavier particles (with mass m2).
+    The velocity of heavier particles does not change during the collision.
+    """
+    def __init__(
+        self, n, m1, m2, lam, legendre_coefs, T=1.0, seed=0
+    ):
+        r"""
+        n: integer
+            number of particles to be traced
+        m1, m2: float
+            mass of the test and heavier particles
+        lam: float
+
+        legendre_coefs: 1d-array
+        T: float
+            temperature of the heavier particles. In the unit of energy
+        """
+        self.n = n
+        self.T = T
+        self.m1 = m1
+        self.m2 = m2
+        self.rng = np.random.RandomState(0)
+        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
+        # initialize with the thermal distribution  
+        self.v1 = thermal_distribution(n, m1, T, self.rng)
+        self.v2 = thermal_distribution(n, m2, T, self.rng)
+    
+    def compute(self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000):
+        r"""
+        Compute the model.
+
+        Parameters
+        ----------
+        heating_rate: float
+            rate of the additional heating for the particle 1
+        heating_temperature: float
+            temperature of the additional heating.
+
+        nsamples: integer
+            number of samples to be stored
+        thin: integer
+            number of skip
+        burnin: integer:
+            number of samples to be used to make the system in the equilibrium
+        """
+        index = np.arange(self.n)
+        # compute the time step
+        self.rng.shuffle(index)
+        u1 = self.v1[index]
+        u2 = self.v2[index]
+        dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)
+        n_heating = int(dt * heating_rate * self.n)
+
+        for _ in range(burnin):
+            # randomly choose the heating ones
+            self.rng.shuffle(index)
+            self.v1[index[:n_heating]] = thermal_distribution(n_heating, self.m1, heating_temperature, self.rng)
+
+            self.rng.shuffle(index)
+            u1 = self.v1[index]
+            u2 = self.v2[index]
+            v1, _, _ = scattering(self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt)
+            self.v1[index] = v1
+            # overwrite v2 by thermal distribution
+            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
+
+        # Optimize dt again
+        self.rng.shuffle(index)
+        u1 = self.v1[index]
+        u2 = self.v2[index]
+        dt = optimize_dt(u1, u2, self.diffsigma, 1.0, self.rng, change_rate=1.2, target_fraction=0.3)        
+        n_heating = int(dt * heating_rate * self.n)
+
+        # actual computation 
+        histogram = []       
+        for i in range(nsamples * thin):
+            # randomly choose the heating ones
+            self.rng.shuffle(index)
+            self.v1[index[:n_heating]] = thermal_distribution(n_heating, self.m1, heating_temperature, self.rng)
+
+            self.rng.shuffle(index)
+            u1 = self.v1[index]
+            u2 = self.v2[index]
+            v1, _, _ = scattering(self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt)
+            self.v1[index] = v1
+            # overwrite v2 by thermal distribution
+            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
+
+            if i % thin == 0:
+                histogram.append(np.copy(self.v1))
+        return np.array(histogram)

@@ -56,3 +56,45 @@ def test_scattering_conservation(m1, m2):
     after = m1 * v1 + m2 * v2
     assert np.allclose(before, after)
     assert n_collision == n
+
+
+def test_optimize_dt():
+    diffsigma = core.DifferentialCrossSection(
+        lam=0, 
+        legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1])
+    # random velicity
+    n = 300
+    rng = np.random.RandomState(0)
+    u1 = rng.randn(n, 3)
+    u2 = rng.randn(n, 3)
+    change_rate = 0.01
+    dt_inits = [1e1, 1e2, 1e3]
+    dt_results = []
+    for dt_init in dt_inits:
+        dt = core.optimize_dt(
+            u1, u2, diffsigma, dt_init, rng, 
+            change_rate=1.0 + change_rate, target_fraction=0.3)
+        dt_results.append(dt)
+    
+    assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
+
+
+def test_boltzman_linear():
+    model = core.BoltzmannLinear(
+        n=1000, m1=1.0, m2=2.0, 
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    )
+    result = model.compute(
+        0.1, 100.0, 
+        nsamples=1000, thin=1, burnin=1000)
+    
+    vsq = np.sum(result**2, axis=-1)
+
+    """
+    import matplotlib.pyplot as plt
+
+    _ = plt.hist(np.log10(vsq.ravel()), bins=51)
+    plt.yscale('log')
+    plt.grid()
+    plt.show()
+    """
