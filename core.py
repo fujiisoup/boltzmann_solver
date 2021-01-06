@@ -129,17 +129,21 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     return v1, v2, np.sum(flag)
 
 
-def optimize_dt(u1, u2, diffsigma, dt_init, rng, change_rate=1.2, target_fraction=0.3):
+def optimize_dt(u1, u2, diffsigma, density, rng, change_rate=1.2, target_fraction=0.3, dt_init=1.0):
     n = len(u1)
     target = n * target_fraction
-    n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, 1.0, dt_init))
+    n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, density, dt_init))
     if n_collided < target / change_rate:  # dt is too small
         return optimize_dt(
-            u1, u2, diffsigma, dt_init * change_rate, rng, change_rate, target_fraction
+            u1, u2, diffsigma,  
+            density, rng, change_rate, target_fraction, 
+            dt_init=dt_init * change_rate
         )
     elif n_collided > target * change_rate:  # dt is too large
         return optimize_dt(
-            u1, u2, diffsigma, dt_init / change_rate, rng, change_rate, target_fraction
+            u1, u2, diffsigma, 
+            density, rng, change_rate, target_fraction,
+            dt_init=dt_init / change_rate, 
         )
     return dt_init
 

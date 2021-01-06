@@ -5,7 +5,7 @@ from . import core
 
 def test_scattering_plot():
     diffsigma = core.DifferentialCrossSection(
-        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
     )
     # consider the beam configuration
     n = 300
@@ -30,13 +30,19 @@ def test_scattering_plot():
     assert np.allclose(np.std(v2[:, 0]), np.std(v2[:, 1]), rtol=0.1)
     assert np.allclose(np.std(v1[:, 0]), np.std(v2[:, 0]), rtol=0.1)
     assert n_collision == n
+
     """
     import matplotlib.pyplot as plt
-    plt.plot(v1[:, 0], v1[:, 1], '.')
-    plt.plot(v2[:, 0], v2[:, 1], '.')
+
+    plt.plot(v1[:, 0], v1[:, 1], ".")
+    plt.plot(v2[:, 0], v2[:, 1], ".")
+    plt.show()
+
+    plt.plot(v1[:, 2], np.sqrt(v1[:, 0] ** 2 + v1[:, 1] ** 2), ".")
+    plt.plot(v2[:, 2], np.sqrt(v2[:, 0] ** 2 + v2[:, 1] ** 2), ".")
     plt.show()
     """
-
+    
 
 @pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
 def test_scattering_conservation(m1, m2):
@@ -88,15 +94,45 @@ def test_optimize_dt():
             u1,
             u2,
             diffsigma,
-            dt_init,
-            rng,
+            density=1.0,
+            rng=rng,
             change_rate=1.0 + change_rate,
             target_fraction=0.3,
+            dt_init=1.0
         )
         dt_results.append(dt)
 
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
+def test_boltzman_mixture_with_zero_density():
+    heating_rate = 0.01
+    heating_temperature = 100.0
+
+    m1 = 1.0
+    vmax = heating_temperature / m1 * 10
+    vmin = vmax * 1e-4
+    v_bins = np.logspace(np.log10(vmin), np.log10(vmax), num=31, base=10)
+    v_size = v_bins[1:] - v_bins[:-1]
+
+    model = core.BoltzmannMixture(
+        n=1000, m1=m1, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    )
+    result = model.compute(
+        heating_rate, heating_temperature, 
+        mixture=1e-10, nsamples=1000, thin=1, burnin=1000)
+    vsq = np.sum(result ** 2, axis=-1)
+    hist_mixture = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size    
+
+    model = core.BoltzmannLinear(
+        n=1000, m1=m1, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    )
+    result = model.compute(
+        heating_rate, heating_temperature, 
+        nsamples=1000, thin=1, burnin=1000)
+    vsq = np.sum(result ** 2, axis=-1)
+    hist_linear = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size    
+
+    assert np.allclose(hist_mixture, hist_linear, rtol=0.2)
 
 def test_boltzman_mixture():
     model = core.BoltzmannMixture(
