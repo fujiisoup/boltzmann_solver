@@ -70,7 +70,4 @@ Icon*
 .ipynb_checkpoints
 
 
-# temporally remove test from git
-tests
-
-notebook
+notebooks

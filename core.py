@@ -259,7 +259,7 @@ class BoltzmannLinear(BoltzmannBase):
                     change_rate=1.2,
                     target_fraction=0.3,
                 )
-                n_heating = int(dt * heating_rate * self.n)
+                n_heating = np.maximum(int(dt * heating_rate * self.n), self.n)
 
             # randomly choose the heating ones
             self.rng.shuffle(index)
@@ -352,7 +352,7 @@ class BoltzmannNonlinear(BoltzmannBase):
                     change_rate=1.2,
                     target_fraction=0.3,
                 )
-                n_heating = int(dt * heating_rate * self.n)
+                n_heating = np.maximum(int(dt * heating_rate * self.n), self.n)
 
             # randomly choose the heated ones
             self.rng.shuffle(index)
