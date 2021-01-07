@@ -114,9 +114,11 @@ def test_boltzman_mixture_with_zero_density():
     v_bins = np.logspace(np.log10(vmin), np.log10(vmax), num=31, base=10)
     v_size = v_bins[1:] - v_bins[:-1]
 
-    model = core.BoltzmannMixture(
-        n=1000, m1=m1, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+    differential_crosssection = core.DifferentialCrossSection(
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
     )
+    model = core.BoltzmannMixture(
+        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection)
     result = model.compute(
         heating_rate, heating_temperature, 
         mixture=1e-10, nsamples=1000, thin=1, burnin=1000)
@@ -124,7 +126,7 @@ def test_boltzman_mixture_with_zero_density():
     hist_mixture = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size    
 
     model = core.BoltzmannLinear(
-        n=1000, m1=m1, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection,
     )
     result = model.compute(
         heating_rate, heating_temperature, 
@@ -135,8 +137,12 @@ def test_boltzman_mixture_with_zero_density():
     assert np.allclose(hist_mixture, hist_linear, rtol=0.2)
 
 def test_boltzman_mixture():
+    differential_crosssection = core.DifferentialCrossSection(
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
+
     model = core.BoltzmannMixture(
-        n=1000, m1=1.0, m2=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m1=1.0, m2=1.0, differential_crosssection=differential_crosssection,
     )
     result = model.compute(0.01, 100.0, 0.5, nsamples=1000, thin=1, burnin=5000)
 
@@ -155,8 +161,11 @@ def test_boltzman_mixture():
 
 
 def test_boltzman_nonlinear():
+    differential_crosssection = core.DifferentialCrossSection(
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
     model = core.BoltzmannNonlinear(
-        n=1000, m=1.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m=1.0, differential_crosssection=differential_crosssection,
     )
     result = model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
 
@@ -174,8 +183,11 @@ def test_boltzman_nonlinear():
 
 
 def test_boltzman_linear():
+    differential_crosssection = core.DifferentialCrossSection(
+        lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
     model = core.BoltzmannLinear(
-        n=1000, m1=1.0, m2=2.0, lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1],
+        n=1000, m1=1.0, m2=2.0, differential_crosssection=differential_crosssection,
     )
     result = model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
 

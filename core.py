@@ -166,10 +166,10 @@ def thermal_distribution(n, m, T, rng):
 
 
 class BotlzmannBase:
-    def __init__(self, n, lam, legendre_coefs, T=1.0, seed=0):
+    def __init__(self, n, differential_crosssection, T=1.0, seed=0):
         self.n = int(n / 2) * 2
         self.rng = np.random.RandomState(0)
-        self.diffsigma = DifferentialCrossSection(lam, legendre_coefs)
+        self.diffsigma = differential_crosssection
         self.index = np.arange(n)
         self.T = T
 
@@ -181,7 +181,7 @@ class BoltzmannLinear(BotlzmannBase):
     The velocity of heavier particles does not change during the collision.
     """
 
-    def __init__(self, n, m1, m2, lam, legendre_coefs, T=1.0, seed=0):
+    def __init__(self, n, m1, m2, differential_crosssection, T=1.0, seed=0):
         r"""
         n: integer
             number of particles to be traced
@@ -193,7 +193,7 @@ class BoltzmannLinear(BotlzmannBase):
         T: float
             temperature of the heavier particles. In the unit of energy
         """
-        super().__init__(n, lam, legendre_coefs, T, seed)
+        super().__init__(n, differential_crosssection, T, seed)
         self.m1 = m1
         self.m2 = m2
         # initialize with the thermal distribution
@@ -272,7 +272,7 @@ class BoltzmannNonlinear(BotlzmannBase):
     collides only with the same-kind particles.
     """
 
-    def __init__(self, n, m, lam, legendre_coefs, T=1.0, seed=0):
+    def __init__(self, n, m, differential_crosssection, T=1.0, seed=0):
         r"""
         n: integer
             number of particles to be traced
@@ -284,7 +284,7 @@ class BoltzmannNonlinear(BotlzmannBase):
         T: float
             initial temperature. In the unit of energy
         """
-        super().__init__(n, lam, legendre_coefs, T, seed)
+        super().__init__(n, differential_crosssection, T, seed)
         self.m = m
         # initialize with the thermal distribution
         self.v = thermal_distribution(n, m, T, self.rng)
