@@ -60,12 +60,48 @@ class DifferentialCrossSection:
         """
         return self._total_crosssection * v ** (-self.lam)
 
-    def scattering_angle(self, r):
+    def scattering_angle(self, u_rel, r):
         r"""
-        Compute the scattering angle based on random variables r, 
-        which is in [0, 1]
+        Compute the scattering angle based on relative velocity and 
+        random variables r, which is in [0, 1]
         """
         return self._cumsum_sigma(r)
+
+
+class CoulombCrossSection:
+    r"""
+    Differential cross section for coulomb scattering.
+
+    We assume the differential cross section is represented as
+    \sigma(E, \theta) = \frac{1}{\theta} g(x)
+
+    where x = E \theta and g(x) is some positive function
+    """
+    def __init__(self, g, m=10000):
+        self.g = g
+        self.m = m
+        self._prepare()
+
+    def _prepare(self):
+        # cumsum_sigma
+        x = np.logspace(-5, 5, self.m)
+        g_values = self.g(x)
+        cumsum = integrate.cumtrapz(g_values / x, x, initial=0)
+        cumsum /= cumsum[-1]  # normalize to one
+        self._cumsum_sigma = interpolate.interp1d(cumsum, x)
+
+        # total crossection
+        def func(x):
+            return self.g(x) / x
+
+        self._total_crosssection = integrate.quad(func, 0, np.inf)[0]
+
+    def total_crosssection(self, v):
+        return self._total_crosssection
+    
+    def scattering_angle(self, u_rel, r):
+        x = self._cumsum_sigma(r)
+        return np.minimum(x / u_rel**2, np.pi)
 
 
 def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
@@ -114,7 +150,9 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     u2_cm = u2 - vel_cm
     # compute the scattering in the center-of-mass system
     phi = rng.uniform(0, 2 * np.pi, size=n)
-    theta = differential_crosssection.scattering_angle(rng.uniform(0, 1, size=n))
+    # relative velocity
+    u_rel = np.sqrt(np.sum(u1**2 + u2**2, axis=-1))
+    theta = differential_crosssection.scattering_angle(u_rel, rng.uniform(0, 1, size=n))
     # compute the scattering
     # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
     rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)

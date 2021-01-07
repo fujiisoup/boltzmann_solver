@@ -3,10 +3,23 @@ import numpy as np
 from . import core
 
 
-def test_scattering_plot():
-    diffsigma = core.DifferentialCrossSection(
+def test_coulomb():
+    def g(x):
+        return 1 / (x + 1)**2
+
+    differential_crosssection = core.CoulombCrossSection(g)
+    print(differential_crosssection._total_crosssection)
+    assert np.isfinite(differential_crosssection._total_crosssection)
+
+
+@pytest.mark.parametrize('diffsigma', [
+    core.DifferentialCrossSection(
         lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
-    )
+    ),
+    core.CoulombCrossSection(lambda x: 1 / (1 + x**2)),
+])
+def test_scattering_plot(diffsigma):
+    
     # consider the beam configuration
     n = 300
     u1 = np.zeros((n, 3))
@@ -31,7 +44,6 @@ def test_scattering_plot():
     assert np.allclose(np.std(v1[:, 0]), np.std(v2[:, 0]), rtol=0.1)
     assert n_collision == n
 
-    """
     import matplotlib.pyplot as plt
 
     plt.plot(v1[:, 0], v1[:, 1], ".")
@@ -41,7 +53,6 @@ def test_scattering_plot():
     plt.plot(v1[:, 2], np.sqrt(v1[:, 0] ** 2 + v1[:, 1] ** 2), ".")
     plt.plot(v2[:, 2], np.sqrt(v2[:, 0] ** 2 + v2[:, 1] ** 2), ".")
     plt.show()
-    """
     
 
 @pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
