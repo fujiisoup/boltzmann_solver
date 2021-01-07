@@ -44,6 +44,7 @@ def test_scattering_plot(diffsigma):
     assert np.allclose(np.std(v1[:, 0]), np.std(v2[:, 0]), rtol=0.1)
     assert n_collision == n
 
+    """
     import matplotlib.pyplot as plt
 
     plt.plot(v1[:, 0], v1[:, 1], ".")
@@ -53,6 +54,7 @@ def test_scattering_plot(diffsigma):
     plt.plot(v1[:, 2], np.sqrt(v1[:, 0] ** 2 + v1[:, 1] ** 2), ".")
     plt.plot(v2[:, 2], np.sqrt(v2[:, 0] ** 2 + v2[:, 1] ** 2), ".")
     plt.show()
+    """
     
 
 @pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
@@ -155,7 +157,7 @@ def test_boltzman_mixture():
     model = core.BoltzmannMixture(
         n=1000, m1=1.0, m2=1.0, differential_crosssection=differential_crosssection,
     )
-    result = model.compute(0.01, 100.0, 0.5, nsamples=1000, thin=1, burnin=5000)
+    result, _ = model.compute(0.01, 100.0, 0.5, nsamples=1000, thin=1, burnin=5000)
 
     vsq = np.sum(result ** 2, axis=-1)
 
@@ -178,7 +180,7 @@ def test_boltzman_nonlinear():
     model = core.BoltzmannNonlinear(
         n=1000, m=1.0, differential_crosssection=differential_crosssection,
     )
-    result = model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
+    result, _= model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
 
     vsq = np.sum(result ** 2, axis=-1)
     """
@@ -200,7 +202,7 @@ def test_boltzman_linear():
     model = core.BoltzmannLinear(
         n=1000, m1=1.0, m2=2.0, differential_crosssection=differential_crosssection,
     )
-    result = model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
+    result, _= model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
 
     vsq = np.sum(result ** 2, axis=-1)
 

@@ -80,11 +80,12 @@ class CoulombCrossSection:
     def __init__(self, g, m=10000):
         self.g = g
         self.m = m
+        self.xmin = 1.0e-3
         self._prepare()
 
     def _prepare(self):
         # cumsum_sigma
-        x = np.logspace(-5, 5, self.m)
+        x = np.logspace(-3, 5, self.m)
         g_values = self.g(x)
         cumsum = integrate.cumtrapz(g_values / x, x, initial=0)
         cumsum /= cumsum[-1]  # normalize to one
@@ -94,7 +95,7 @@ class CoulombCrossSection:
         def func(x):
             return self.g(x) / x
 
-        self._total_crosssection = integrate.quad(func, 0, np.inf)[0]
+        self._total_crosssection = integrate.quad(func, self.xmin, np.inf)[0]
 
     def total_crosssection(self, v):
         return self._total_crosssection
@@ -261,6 +262,8 @@ class BoltzmannLinear(BotlzmannBase):
         index = np.arange(self.n)
         histogram = []
 
+        time = 0.0
+        times = []
         for i in range(-burnin, nsamples * thin):
             if i in [-burnin, 0]:
                 # compute the time step
@@ -301,7 +304,9 @@ class BoltzmannLinear(BotlzmannBase):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v1))
-        return np.array(histogram)
+                times.append(time)
+            time += dt
+        return np.array(histogram), times
 
 
 class BoltzmannNonlinear(BotlzmannBase):
@@ -356,6 +361,8 @@ class BoltzmannNonlinear(BotlzmannBase):
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
         histogram = []
+        time = 0.0
+        times = []
         for i in range(-burnin, nsamples * thin):
             if i in [-burnin, 0]:
                 # compute the time step
@@ -397,7 +404,9 @@ class BoltzmannNonlinear(BotlzmannBase):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v))
-        return np.array(histogram)
+                times.append(time)
+            time += dt
+        return np.array(histogram), times
 
 
 class BoltzmannMixture(BoltzmannLinear):
@@ -437,6 +446,8 @@ class BoltzmannMixture(BoltzmannLinear):
         test_density = mixture
         bath_density = 1.0 - mixture
 
+        time = 0.0
+        times = []
         for i in range(-burnin, nsamples * thin):
             if i in [-burnin, 0]:
                 # compute the time step
@@ -504,4 +515,6 @@ class BoltzmannMixture(BoltzmannLinear):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v1))
-        return np.array(histogram)
+                times.append(time)
+            time += dt
+        return np.array(histogram), times
