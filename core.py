@@ -77,10 +77,10 @@ class CoulombCrossSection:
 
     where x = E \theta and g(x) is some positive function
     """
-    def __init__(self, g, m=10000):
+    def __init__(self, g, m=10000, xmin=1e-3):
         self.g = g
         self.m = m
-        self.xmin = 1.0e-3
+        self.xmin = xmin
         self._prepare()
 
     def _prepare(self):
