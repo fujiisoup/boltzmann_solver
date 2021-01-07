@@ -5,21 +5,24 @@ from . import core
 
 def test_coulomb():
     def g(x):
-        return 1 / (x + 1)**2
+        return 1 / (x + 1) ** 2
 
     differential_crosssection = core.CoulombCrossSection(g)
     print(differential_crosssection._total_crosssection)
     assert np.isfinite(differential_crosssection._total_crosssection)
 
 
-@pytest.mark.parametrize('diffsigma', [
-    core.DifferentialCrossSection(
-        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
-    ),
-    core.CoulombCrossSection(lambda x: 1 / (1 + x**2)),
-])
+@pytest.mark.parametrize(
+    "diffsigma",
+    [
+        core.DifferentialCrossSection(
+            lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
+        ),
+        core.CoulombCrossSection(lambda x: 1 / (1 + x ** 2)),
+    ],
+)
 def test_scattering_plot(diffsigma):
-    
+
     # consider the beam configuration
     n = 300
     u1 = np.zeros((n, 3))
@@ -55,7 +58,7 @@ def test_scattering_plot(diffsigma):
     plt.plot(v2[:, 2], np.sqrt(v2[:, 0] ** 2 + v2[:, 1] ** 2), ".")
     plt.show()
     """
-    
+
 
 @pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
 def test_scattering_conservation(m1, m2):
@@ -111,11 +114,12 @@ def test_optimize_dt():
             rng=rng,
             change_rate=1.0 + change_rate,
             target_fraction=0.3,
-            dt_init=1.0
+            dt_init=1.0,
         )
         dt_results.append(dt)
 
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
+
 
 def test_boltzman_mixture_with_zero_density():
     heating_rate = 0.01
@@ -131,23 +135,30 @@ def test_boltzman_mixture_with_zero_density():
         lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
     )
     model = core.BoltzmannMixture(
-        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection)
-    result = model.compute(
-        heating_rate, heating_temperature, 
-        mixture=1e-10, nsamples=1000, thin=1, burnin=1000)
-    vsq = np.sum(result ** 2, axis=-1)
-    hist_mixture = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size    
-
-    model = core.BoltzmannLinear(
-        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection,
+        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection
     )
     result = model.compute(
-        heating_rate, heating_temperature, 
-        nsamples=1000, thin=1, burnin=1000)
+        heating_rate,
+        heating_temperature,
+        mixture=1e-10,
+        nsamples=1000,
+        thin=1,
+        burnin=1000,
+    )
     vsq = np.sum(result ** 2, axis=-1)
-    hist_linear = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size    
+    hist_mixture = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size
+
+    model = core.BoltzmannLinear(
+        n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection
+    )
+    result = model.compute(
+        heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000
+    )
+    vsq = np.sum(result ** 2, axis=-1)
+    hist_linear = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size
 
     assert np.allclose(hist_mixture, hist_linear, rtol=0.2)
+
 
 def test_boltzman_mixture():
     differential_crosssection = core.DifferentialCrossSection(
@@ -155,7 +166,7 @@ def test_boltzman_mixture():
     )
 
     model = core.BoltzmannMixture(
-        n=1000, m1=1.0, m2=1.0, differential_crosssection=differential_crosssection,
+        n=1000, m1=1.0, m2=1.0, differential_crosssection=differential_crosssection
     )
     result, _ = model.compute(0.01, 100.0, 0.5, nsamples=1000, thin=1, burnin=5000)
 
@@ -178,9 +189,9 @@ def test_boltzman_nonlinear():
         lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
     )
     model = core.BoltzmannNonlinear(
-        n=1000, m=1.0, differential_crosssection=differential_crosssection,
+        n=1000, m=1.0, differential_crosssection=differential_crosssection
     )
-    result, _= model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
+    result, _ = model.compute(0.01, 100.0, 0.05, nsamples=1000, thin=1, burnin=5000)
 
     vsq = np.sum(result ** 2, axis=-1)
     """
@@ -200,9 +211,9 @@ def test_boltzman_linear():
         lam=0.0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
     )
     model = core.BoltzmannLinear(
-        n=1000, m1=1.0, m2=2.0, differential_crosssection=differential_crosssection,
+        n=1000, m1=1.0, m2=2.0, differential_crosssection=differential_crosssection
     )
-    result, _= model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
+    result, _ = model.compute(0.1, 100.0, nsamples=1000, thin=1, burnin=1000)
 
     vsq = np.sum(result ** 2, axis=-1)
 

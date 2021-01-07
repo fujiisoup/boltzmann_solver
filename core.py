@@ -77,7 +77,8 @@ class CoulombCrossSection:
 
     where x = E \theta and g(x) is some positive function
     """
-    def __init__(self, g, m=10000, xmin=1e-3):
+
+    def __init__(self, g, m=10000, xmin=1e2):
         self.g = g
         self.m = m
         self.xmin = xmin
@@ -85,24 +86,23 @@ class CoulombCrossSection:
 
     def _prepare(self):
         # cumsum_sigma
-        x = np.logspace(-3, 5, self.m)
+        x = np.logspace(np.log10(self.xmin), 5, self.m)
         g_values = self.g(x)
         cumsum = integrate.cumtrapz(g_values / x, x, initial=0)
         cumsum /= cumsum[-1]  # normalize to one
         self._cumsum_sigma = interpolate.interp1d(cumsum, x)
 
         # total crossection
-        def func(x):
-            return self.g(x) / x
-
-        self._total_crosssection = integrate.quad(func, self.xmin, np.inf)[0]
+        self._total_crosssection = integrate.quad(
+            lambda x: g(x) / x, self.xmin, np.inf
+        )[0]
 
     def total_crosssection(self, v):
         return self._total_crosssection
-    
+
     def scattering_angle(self, u_rel, r):
-        x = self._cumsum_sigma(r)
-        return np.minimum(x / u_rel**2, np.pi)
+        theta = self._cumsum_sigma(r) / u_rel ** 2  # in deg
+        return np.minimum(theta / 180.0 * np.pi, np.pi)
 
 
 def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
@@ -152,7 +152,7 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     # compute the scattering in the center-of-mass system
     phi = rng.uniform(0, 2 * np.pi, size=n)
     # relative velocity
-    u_rel = np.sqrt(np.sum(u1**2 + u2**2, axis=-1))
+    u_rel = np.sqrt(np.sum(u1 ** 2 + u2 ** 2, axis=-1))
     theta = differential_crosssection.scattering_angle(u_rel, rng.uniform(0, 1, size=n))
     # compute the scattering
     # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
@@ -168,21 +168,33 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     return v1, v2, np.sum(flag)
 
 
-def optimize_dt(u1, u2, diffsigma, density, rng, change_rate=1.2, target_fraction=0.3, dt_init=1.0):
+def optimize_dt(
+    u1, u2, diffsigma, density, rng, change_rate=1.2, target_fraction=0.3, dt_init=1.0
+):
     n = len(u1)
     target = n * target_fraction
     n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, density, dt_init))
     if n_collided < target / change_rate:  # dt is too small
         return optimize_dt(
-            u1, u2, diffsigma,  
-            density, rng, change_rate, target_fraction, 
-            dt_init=dt_init * change_rate
+            u1,
+            u2,
+            diffsigma,
+            density,
+            rng,
+            change_rate,
+            target_fraction,
+            dt_init=dt_init * change_rate,
         )
     elif n_collided > target * change_rate:  # dt is too large
         return optimize_dt(
-            u1, u2, diffsigma, 
-            density, rng, change_rate, target_fraction,
-            dt_init=dt_init / change_rate, 
+            u1,
+            u2,
+            diffsigma,
+            density,
+            rng,
+            change_rate,
+            target_fraction,
+            dt_init=dt_init / change_rate,
         )
     return dt_init
 
