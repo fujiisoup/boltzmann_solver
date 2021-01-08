@@ -193,10 +193,10 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
 
 
 def optimize_dt(
-    u1, u2, diffsigma, density, rng, change_rate=1.2, target_fraction=0.3, dt_init=1.0
+    u1, u2, diffsigma, density, rng, change_rate=1.2, reaction_rate_per_step=0.3, dt_init=1.0
 ):
     n = len(u1)
-    target = n * target_fraction
+    target = n * reaction_rate_per_step
     n_collided = np.sum(flag_scattering(u1, u2, rng, diffsigma, density, dt_init))
     if n_collided < target / change_rate:  # dt is too small
         return optimize_dt(
@@ -206,7 +206,7 @@ def optimize_dt(
             density,
             rng,
             change_rate,
-            target_fraction,
+            reaction_rate_per_step,
             dt_init=dt_init * change_rate,
         )
     elif n_collided > target * change_rate:  # dt is too large
@@ -217,7 +217,7 @@ def optimize_dt(
             density,
             rng,
             change_rate,
-            target_fraction,
+            reaction_rate_per_step,
             dt_init=dt_init / change_rate,
         )
     return dt_init
@@ -276,7 +276,8 @@ class BoltzmannLinear(BotlzmannBase):
         self.v2 = thermal_distribution(n, m2, T, self.rng)
 
     def compute(
-        self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000
+        self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000,
+        reaction_rate_per_step=0.3,
     ):
         r"""
         Compute the model.
@@ -313,7 +314,7 @@ class BoltzmannLinear(BotlzmannBase):
                     1.0,
                     self.rng,
                     change_rate=1.2,
-                    target_fraction=0.3,
+                    reaction_rate_per_step=reaction_rate_per_step,
                 )
                 n_heating_rate = dt * heating_rate * self.n
 
@@ -376,6 +377,7 @@ class BoltzmannNonlinear(BotlzmannBase):
         nsamples=1000,
         thin=1,
         burnin=1000,
+        reaction_rate_per_step=0.3,
     ):
         r"""
         Compute the model.
@@ -412,7 +414,7 @@ class BoltzmannNonlinear(BotlzmannBase):
                     1.0,
                     self.rng,
                     change_rate=1.2,
-                    target_fraction=0.3,
+                    reaction_rate_per_step=reaction_rate_per_step,
                 )
                 n_heating_rate = dt * heating_rate * self.n
 
@@ -454,6 +456,7 @@ class BoltzmannMixture(BoltzmannLinear):
         nsamples=1000,
         thin=1,
         burnin=1000,
+        reaction_rate_per_step=0.3,
     ):
         r"""
         Compute the model.
@@ -498,7 +501,7 @@ class BoltzmannMixture(BoltzmannLinear):
                     bath_density,
                     self.rng,
                     change_rate=1.2,
-                    target_fraction=0.3,
+                    reaction_rate_per_step=reaction_rate_per_step,
                 )
                 # compute dt from the collisions among the test particles
                 u1 = self.v1[index[:nhalf]]
@@ -510,7 +513,7 @@ class BoltzmannMixture(BoltzmannLinear):
                     test_density,
                     self.rng,
                     change_rate=1.2,
-                    target_fraction=0.3,
+                    reaction_rate_per_step=reaction_rate_per_step,
                 )
 
                 # determine dt from the dominant collision

@@ -113,7 +113,7 @@ def test_optimize_dt():
             density=1.0,
             rng=rng,
             change_rate=1.0 + change_rate,
-            target_fraction=0.3,
+            reaction_rate_per_step=0.3,
             dt_init=1.0,
         )
         dt_results.append(dt)
