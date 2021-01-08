@@ -69,5 +69,8 @@ Icon*
 
 .ipynb_checkpoints
 
-
+# analysis folder
 notebooks
+analysis
+
+nohup.out
