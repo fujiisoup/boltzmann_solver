@@ -37,7 +37,7 @@ class DifferentialCrossSection:
         theta = np.linspace(0, np.pi, self.m)
         diffpart = self.differential_part(theta)
         cumsum = integrate.cumtrapz(diffpart, theta, initial=0)
-        cumsum /= cumsum[-1]  # normalize to one
+        cumsum = cumsum / cumsum[-1]  # normalize to one
         self._cumsum_sigma = interpolate.interp1d(cumsum, theta)
 
         # total crossection
@@ -68,6 +68,23 @@ class DifferentialCrossSection:
         return self._cumsum_sigma(r)
 
 
+def g_Lewkow(x):
+    """
+    Analytical form of the elastic cross section
+    Lewkow, N. R., Kharchenko, V., & Zhang, P. (2012). 
+    ENERGY RELAXATION OF HELIUM ATOMS IN ASTROPHYSICAL GASES. 
+    The Astrophysical Journal, 756(1), 57. https://doi.org/10.1088/0004-637X/756/1/57
+
+    where 
+    x = E theta
+    with
+    E: in eV
+    theta: in degree
+    """
+    a1, a2, a3, a4 = -0.136, 0.993, -3.042, 5.402
+    return 10 ** (a1 * np.log10(x) ** 3 + a2 * np.log10(x) ** 2 + a3 * np.log10(x) + a4)
+
+
 class CoulombCrossSection:
     r"""
     Differential cross section for coulomb scattering.
@@ -79,6 +96,13 @@ class CoulombCrossSection:
     """
 
     def __init__(self, g, m=10000, xmin=1e2):
+        r"""
+        g: functional
+            A function gives the differential cross section.
+            See g_Lewkow as an example
+        xmin: float
+            minimum x values to compute the differential cross section.
+        """
         self.g = g
         self.m = m
         self.xmin = xmin
@@ -89,12 +113,12 @@ class CoulombCrossSection:
         x = np.logspace(np.log10(self.xmin), 5, self.m)
         g_values = self.g(x)
         cumsum = integrate.cumtrapz(g_values / x, x, initial=0)
-        cumsum /= cumsum[-1]  # normalize to one
+        cumsum = cumsum / cumsum[-1]  # normalize to one
         self._cumsum_sigma = interpolate.interp1d(cumsum, x)
 
         # total crossection
         self._total_crosssection = integrate.quad(
-            lambda x: g(x) / x, self.xmin, np.inf
+            lambda x: self.g(x) / x, self.xmin, np.inf
         )[0]
 
     def total_crosssection(self, v):

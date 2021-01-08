@@ -18,15 +18,15 @@ def test_coulomb():
         core.DifferentialCrossSection(
             lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
         ),
-        core.CoulombCrossSection(lambda x: 1 / (1 + x ** 2)),
+        core.CoulombCrossSection(core.g_Lewkow),
     ],
 )
 def test_scattering_plot(diffsigma):
 
     # consider the beam configuration
-    n = 300
+    n = 30000
     u1 = np.zeros((n, 3))
-    u1[:, -1] = 1
+    u1[:, -1] = 100.0
     u2 = np.zeros((n, 3))
     rng = np.random.RandomState(0)
 
@@ -42,9 +42,9 @@ def test_scattering_plot(diffsigma):
     )
 
     # should be symmetric along x axis
-    assert np.allclose(np.std(v1[:, 0]), np.std(v1[:, 1]), rtol=0.1)
-    assert np.allclose(np.std(v2[:, 0]), np.std(v2[:, 1]), rtol=0.1)
-    assert np.allclose(np.std(v1[:, 0]), np.std(v2[:, 0]), rtol=0.1)
+    assert np.allclose(np.std(v1[:, 0]), np.std(v1[:, 1]), rtol=0.1, atol=1e-10)
+    assert np.allclose(np.std(v2[:, 0]), np.std(v2[:, 1]), rtol=0.1, atol=1e-10)
+    assert np.allclose(np.std(v1[:, 0]), np.std(v2[:, 0]), rtol=0.1, atol=1e-10)
     assert n_collision == n
 
     """
@@ -137,7 +137,7 @@ def test_boltzman_mixture_with_zero_density():
     model = core.BoltzmannMixture(
         n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection
     )
-    result = model.compute(
+    result, _ = model.compute(
         heating_rate,
         heating_temperature,
         mixture=1e-10,
@@ -151,7 +151,7 @@ def test_boltzman_mixture_with_zero_density():
     model = core.BoltzmannLinear(
         n=1000, m1=m1, m2=1.0, differential_crosssection=differential_crosssection
     )
-    result = model.compute(
+    result, _ = model.compute(
         heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000
     )
     vsq = np.sum(result ** 2, axis=-1)
