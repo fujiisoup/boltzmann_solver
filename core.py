@@ -134,7 +134,7 @@ class TheoreticalCrossSections:
     Differential crosssection based on theory
     """
 
-    def __init__(self, data, effective_mass=1.0):
+    def __init__(self, data, effective_mass=1.0, m=10000):
         """
         data: xr.dataarray
             dimensions should be ['energy', 'angle'] 
@@ -146,9 +146,9 @@ class TheoreticalCrossSections:
             .transpose("energy", "angle")
             .isel(angle=slice(None, -1))
         )
-        print(self._data.coords)
-        self._prepare()
         self.effective_mass = effective_mass
+        self.m = m
+        self._prepare()
 
     def _prepare(self):
         total_crosssection = self._data.integrate("angle")
@@ -165,9 +165,15 @@ class TheoreticalCrossSections:
         angular = integrate.cumtrapz(
             self._data.values, self._data["angle"].values, axis=-1, initial=0.0
         )
+        x = np.sin(np.linspace(0, np.pi / 2, num=self.m)) ** 2
+        cumsigma = []
+        for i in range(len(angular)):
+            cumsigma.append(
+                np.interp(x, angular[i] / angular[i, -1], self._data["angle"].values)
+            )
         self._cumsum_sigma = interpolate.RegularGridInterpolator(
-            (np.log(self._data["energy"].values), self._data["angle"].values),
-            angular / angular[:, -1:],
+            (np.log(self._data["energy"].values), x),
+            cumsigma,
             method="linear",
             bounds_error=False,
             fill_value=None,

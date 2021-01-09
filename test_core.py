@@ -32,9 +32,9 @@ def test_coulomb():
 def test_scattering_plot(diffsigma):
 
     # consider the beam configuration
-    n = 30000
+    n = 300
     u1 = np.zeros((n, 3))
-    u1[:, -1] = 100.0
+    u1[:, -1] = 3.0
     u2 = np.zeros((n, 3))
     rng = np.random.RandomState(0)
 
