@@ -304,7 +304,7 @@ def thermal_distribution(n, m, T, rng):
         temperature
     rng: np.random.RandomState
     """
-    return rng.randn(n, 3) * np.sqrt(2.0 * T / m)
+    return rng.randn(n, 3) * np.sqrt(T / m)
 
 
 class BotlzmannBase:
