@@ -157,7 +157,7 @@ class TheoreticalCrossSections:
             np.log(total_crosssection["energy"].values),
             np.log(total_crosssection.values),
             bounds_error=False,
-            fill_value=None,
+            fill_value='extrapolate',
             kind="linear",
             assume_sorted=True,
         )
@@ -304,7 +304,7 @@ def thermal_distribution(n, m, T, rng):
         temperature
     rng: np.random.RandomState
     """
-    return rng.randn(n, 3) * np.sqrt(T / m)
+    return rng.randn(n, 3) * np.sqrt(2.0 * T / m)
 
 
 class BotlzmannBase:
