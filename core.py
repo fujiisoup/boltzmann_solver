@@ -520,6 +520,33 @@ class BoltzmannNonlinear(BotlzmannBase):
 
 
 class BoltzmannMixture(BoltzmannLinear):
+    def __init__(
+        self,
+        n,
+        m1,
+        m2,
+        differential_crosssection,
+        differential_crosssection_test=None,
+        T=1.0,
+        seed=0,
+    ):
+        r"""
+        n: integer
+            number of particles to be traced
+        m1, m2: float
+            mass of the test and heavier particles
+        lam: float
+
+        legendre_coefs: 1d-array
+        T: float
+            temperature of the heavier particles. In the unit of energy
+        """
+        super().__init__(n, m1, m2, differential_crosssection, T=T, seed=seed)
+        if differential_crosssection_test is not None:
+            self.diffsigma_test = differential_crosssection_test
+        else:
+            self.diffsigma_test = self.diffsigma
+
     def compute(
         self,
         heating_rate,
@@ -581,7 +608,7 @@ class BoltzmannMixture(BoltzmannLinear):
                 dt_test = optimize_dt(
                     u1,
                     u2,
-                    self.diffsigma,
+                    self.diffsigma_test,
                     test_density,
                     self.rng,
                     change_rate=1.2,
@@ -619,7 +646,7 @@ class BoltzmannMixture(BoltzmannLinear):
             u1 = self.v1[index[:nhalf]]
             u2 = self.v1[index[nhalf:]]
             v1, v2, _ = scattering(
-                self.m1, u1, self.m1, u2, self.rng, self.diffsigma, test_density, dt
+                self.m1, u1, self.m1, u2, self.rng, self.diffsigma_test, test_density, dt
             )
             self.v1[index[:nhalf]] = v1
             self.v1[index[nhalf:]] = v2
