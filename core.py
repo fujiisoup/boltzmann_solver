@@ -129,6 +129,60 @@ class CoulombCrossSection:
         return np.minimum(theta / 180.0 * np.pi, np.pi)
 
 
+class TheoreticalCrossSections:
+    """
+    Differential crosssection based on theory
+    """
+
+    def __init__(self, data, effective_mass=1.0):
+        """
+        data: xr.dataarray
+            dimensions should be ['energy', 'angle'] 
+        effective_mass: m * M / (m + M)
+        """
+        self._data = (
+            data.sortby("energy")
+            .sortby("angle")
+            .transpose("energy", "angle")
+            .isel(angle=slice(None, -1))
+        )
+        print(self._data.coords)
+        self._prepare()
+        self.effective_mass = effective_mass
+
+    def _prepare(self):
+        total_crosssection = self._data.integrate("angle")
+        # maybe better to avoid using xarray
+        self._log_total_crosssection = interpolate.interp1d(
+            np.log(total_crosssection["energy"].values),
+            np.log(total_crosssection.values),
+            bounds_error=False,
+            fill_value=None,
+            kind="linear",
+            assume_sorted=True,
+        )
+        # angular part
+        angular = integrate.cumtrapz(
+            self._data.values, self._data["angle"].values, axis=-1, initial=0.0
+        )
+        self._cumsum_sigma = interpolate.RegularGridInterpolator(
+            (np.log(self._data["energy"].values), self._data["angle"].values),
+            angular / angular[:, -1:],
+            method="linear",
+            bounds_error=False,
+            fill_value=None,
+        )
+
+    def log_Ecm(self, v):
+        return np.log(v ** 2 * (self.effective_mass / 2))
+
+    def total_crosssection(self, v):
+        return np.exp(self._log_total_crosssection(self.log_Ecm(v)))
+
+    def scattering_angle(self, u_rel, r):
+        return self._cumsum_sigma(np.stack([self.log_Ecm(u_rel), r], axis=-1))
+
+
 def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     r"""
     Compute if the scattering happens during dt
@@ -193,7 +247,14 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
 
 
 def optimize_dt(
-    u1, u2, diffsigma, density, rng, change_rate=1.2, reaction_rate_per_step=0.3, dt_init=1.0
+    u1,
+    u2,
+    diffsigma,
+    density,
+    rng,
+    change_rate=1.2,
+    reaction_rate_per_step=0.3,
+    dt_init=1.0,
 ):
     n = len(u1)
     target = n * reaction_rate_per_step
@@ -276,7 +337,12 @@ class BoltzmannLinear(BotlzmannBase):
         self.v2 = thermal_distribution(n, m2, T, self.rng)
 
     def compute(
-        self, heating_rate, heating_temperature, nsamples=1000, thin=1, burnin=1000,
+        self,
+        heating_rate,
+        heating_temperature,
+        nsamples=1000,
+        thin=1,
+        burnin=1000,
         reaction_rate_per_step=0.3,
     ):
         r"""

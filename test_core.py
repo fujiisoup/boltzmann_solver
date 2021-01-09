@@ -1,6 +1,11 @@
-import pytest
+import os
 import numpy as np
+import pytest
+import xarray as xr
 from . import core
+
+
+THIS_DIR = os.path.dirname(__file__)
 
 
 def test_coulomb():
@@ -19,6 +24,9 @@ def test_coulomb():
             lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1, 1]
         ),
         core.CoulombCrossSection(core.g_Lewkow),
+        core.TheoreticalCrossSections(
+            xr.load_dataarray(THIS_DIR + "/crosssections/H-H/elastic_differential.nc")
+        ),
     ],
 )
 def test_scattering_plot(diffsigma):
