@@ -583,6 +583,8 @@ class BoltzmannMixture(BoltzmannLinear):
         histogram = []
         test_density = mixture
         bath_density = 1.0 - mixture
+        # heating rate should be proportional to bath density
+        heating_rate = heating_rate * bath_density
 
         time = 0.0
         times = []
