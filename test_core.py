@@ -27,6 +27,7 @@ def test_coulomb():
         core.TheoreticalCrossSections(
             xr.load_dataarray(THIS_DIR + "/crosssections/H-H/elastic_differential.nc")
         ),
+        core.IsotropicCrossSections(),
     ],
 )
 def test_scattering_plot(diffsigma):

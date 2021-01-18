@@ -129,6 +129,20 @@ class CoulombCrossSection:
         return np.minimum(theta / 180.0 * np.pi, np.pi)
 
 
+class IsotropicCrossSections:
+    """
+    Crosssection for Isotropic scattering
+    """
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def total_crosssection(self, v):
+        return 1.0
+
+    def scattering_angle(self, u_rel, r):
+        return r * np.pi
+        
+
 class TheoreticalCrossSections:
     """
     Differential crosssection based on theory
