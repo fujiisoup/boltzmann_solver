@@ -329,6 +329,14 @@ class BotlzmannBase:
         self.index = np.arange(n)
         self.T = T
 
+    def _heat_index(self, v, n_heating, heating_weight_index):
+        if heating_weight_index is None:
+            return self.rng.choice(len(v), n_heating)
+        
+        weight = np.sum(v**2, axis=-1)**heating_weight_index
+        weight = weight / np.sum(weight)
+        return self.rng.choice(len(v), n_heating, p=weight)
+
 
 class BoltzmannLinear(BotlzmannBase):
     r"""
@@ -360,6 +368,7 @@ class BoltzmannLinear(BotlzmannBase):
         self,
         heating_rate,
         heating_temperature,
+        heating_weight_index=None,
         nsamples=1000,
         thin=1,
         burnin=1000,
@@ -374,6 +383,8 @@ class BoltzmannLinear(BotlzmannBase):
             rate of the additional heating for the particle 1
         heating_temperature: float
             temperature of the additional heating.
+        heating_weight_index:
+            choose the heated particle depending on E^{index}
 
         nsamples: integer
             number of samples to be stored
@@ -410,8 +421,9 @@ class BoltzmannLinear(BotlzmannBase):
                 n_heating = np.minimum(int(n_heating_rate), self.n)
 
             # randomly choose the heated particles
-            self.rng.shuffle(index)
-            self.v1[index[:n_heating]] = thermal_distribution(
+            index_heating = self._heat_index(
+                self.v1, n_heating, heating_weight_index)
+            self.v1[index_heating] = thermal_distribution(
                 n_heating, self.m1, heating_temperature, self.rng
             )
 
@@ -460,6 +472,7 @@ class BoltzmannNonlinear(BotlzmannBase):
         heating_rate,
         heating_temperature,
         cooling_rate,
+        heating_weight_index=None,
         nsamples=1000,
         thin=1,
         burnin=1000,
@@ -474,6 +487,8 @@ class BoltzmannNonlinear(BotlzmannBase):
             rate of the additional heating for the particle 1
         heating_temperature: float
             temperature of the additional heating.
+        heating_weight_index:
+            choose the heated particle depending on E^{index}
 
         nsamples: integer
             number of samples to be stored
@@ -510,8 +525,9 @@ class BoltzmannNonlinear(BotlzmannBase):
                 n_heating = np.minimum(int(n_heating_rate), self.n)
 
             # randomly choose the heated particles
-            self.rng.shuffle(index)
-            self.v[index[:n_heating]] = thermal_distribution(
+            index_heating = self._heat_index(
+                self.v, n_heating, heating_weight_index)
+            self.v[index_heating] = thermal_distribution(
                 n_heating, self.m, heating_temperature, self.rng
             )
             # cooling
@@ -566,6 +582,7 @@ class BoltzmannMixture(BoltzmannLinear):
         heating_rate,
         heating_temperature,
         mixture,
+        heating_weight_index=None,
         nsamples=1000,
         thin=1,
         burnin=1000,
@@ -583,7 +600,9 @@ class BoltzmannMixture(BoltzmannLinear):
         mixture: float in [1, 0]
             mixture rate of the test among all the particles.
             If mixture == 1, then pure test particles are assumed (but the energy will diverge)
-        
+        heating_weight_index:
+            choose the heated particle depending on E^{index}
+
         nsamples: integer
             number of samples to be stored
         thin: integer
@@ -642,8 +661,9 @@ class BoltzmannMixture(BoltzmannLinear):
                 n_heating = np.minimum(int(n_heating_rate), self.n)
 
             # randomly choose the heated particles
-            self.rng.shuffle(index)
-            self.v1[index[:n_heating]] = thermal_distribution(
+            index_heating = self._heat_index(
+                self.v1, n_heating, heating_weight_index)
+            self.v1[index_heating] = thermal_distribution(
                 n_heating, self.m1, heating_temperature, self.rng
             )
 
