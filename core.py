@@ -137,7 +137,7 @@ class IsotropicCrossSections:
         pass
 
     def total_crosssection(self, v):
-        return 1.0
+        return v**(-1/3)
 
     def scattering_angle(self, u_rel, r):
         return r * np.pi

@@ -71,6 +71,8 @@ Icon*
 
 # analysis folder
 notebooks
-analysis
+
+# computed data 
+analysis/*.nc
 
 nohup.out
