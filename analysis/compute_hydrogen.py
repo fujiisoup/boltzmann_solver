@@ -9,9 +9,14 @@ import core
 
 
 def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
-    diffsigma = core.IsotropicCrossSections()
-    diffsigma_test = core.IsotropicCrossSections()
-    # parameters
+    diffsigma = core.TheoreticalCrossSections(
+        xr.load_dataarray('../crosssections/H-H2/elastic_differential.nc'),
+        effective_mass=2.0 / 3.0
+    )
+    diffsigma_test = core.TheoreticalCrossSections(
+        xr.load_dataarray('../crosssections/H-H/elastic_differential.nc'),
+        effective_mass=1.0 / 2.0
+    )    # parameters
     m1 = 1.0
     m2 = 1.0
     # T = 3.0e-2
@@ -87,10 +92,10 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
         },
         attrs={"type": "coulomb"},
     )
-    return result
+    return result.mean('sample')
 
 
-heating_rates = np.logspace(-2, 1, 7)
+heating_rates = np.logspace(-2, 2, 41)
 mixture_ratios = np.logspace(-3, 2, 31)[::-1]
 mixture_ratios = np.concatenate([[0], 1 / (1 + mixture_ratios)])
 T2 = [1e-4, 0.03]
@@ -116,4 +121,4 @@ for T in T2:
         histograms_all.append(xr.concat(histograms, dim="mixture"))
     histograms_all2.append(xr.concat(histograms_all, dim="heating_rate"))
 histograms_all2 = xr.concat(histograms_all2, dim="T")
-histograms_all2.to_netcdf("isotropic.nc")
+histograms_all2.to_netcdf("hydrogen.nc")

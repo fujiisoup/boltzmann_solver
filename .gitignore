@@ -73,6 +73,6 @@ Icon*
 notebooks
 
 # computed data 
-analysis/*.nc
+# analysis/*.nc
 
 nohup.out
