@@ -18,7 +18,7 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
         effective_mass=1.0 / 2.0
     )    # parameters
     m1 = 1.0
-    m2 = 1.0
+    m2 = 2.0
     # T = 3.0e-2
     heating_temperature = 3.0
 
