@@ -146,6 +146,33 @@ def test_optimize_dt():
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
 
+def test_thermal_distribution():
+    # make sure shape=1 is the same with shape=None
+    n = 1000
+    m = 3.0
+    T = 3.0
+    rng = np.random.RandomState(0)
+    v_expected = core.thermal_distribution(n, m, T, rng, shape=None)
+    v_actual = core.thermal_distribution(n, m, T, rng, shape=1)
+    # moments should be close
+    v_scale = np.std(v_expected, axis=0)
+    for i in [1, 2, 4, 6]:
+        m_expected = np.mean(v_expected**i, axis=0)**(1/i)
+        m_actual = np.mean(v_actual**i, axis=0)**(1/i)
+        assert np.allclose(
+            m_expected / v_scale, m_actual / v_scale, 
+            atol=0.1
+        )
+    # for other shape parameter
+    for shape in [2, 3, 4]:
+        m_expected = np.mean(v_expected**2, axis=0)
+        m_actual = np.mean(v_actual**2, axis=0)
+        assert np.allclose(
+            np.sqrt(m_expected) / v_scale, np.sqrt(m_actual) / v_scale, 
+            atol=0.1
+        )
+
+
 def test_boltzman_mixture_with_zero_density():
     heating_rate = 0.01
     heating_temperature = 100.0

@@ -304,7 +304,7 @@ def optimize_dt(
     return dt_init
 
 
-def thermal_distribution(n, m, T, rng):
+def thermal_distribution(n, m, T, rng, shape=None):
     r"""
     Construct the thermal velocity distribution
 
@@ -317,8 +317,15 @@ def thermal_distribution(n, m, T, rng):
     T: float
         temperature
     rng: np.random.RandomState
+    shape: optional, float
+        Assuming Gamma-like distribution with shape parameter
     """
-    return rng.randn(n, 3) * np.sqrt(T / m)
+    v = rng.randn(n, 3) * np.sqrt(T / m)
+    if shape is None:
+        return v
+    else:
+        v_abs = np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
+        return v * v_abs**(shape - 1) * 4 / (3 + shape)
 
 
 class BotlzmannBase:
@@ -373,6 +380,7 @@ class BoltzmannLinear(BotlzmannBase):
         thin=1,
         burnin=1000,
         reaction_rate_per_step=0.3,
+        heating_shape=None
     ):
         r"""
         Compute the model.
@@ -392,6 +400,9 @@ class BoltzmannLinear(BotlzmannBase):
             number of skip
         burnin: integer:
             number of samples to be used to make the system in the equilibrium
+        heating_shape: optional. None or float
+            Controls the velocity distribution of generated radicals. 
+            If None or 1, the heating shape is Maxwellian. 
         """
         index = np.arange(self.n)
         histogram = []
@@ -424,7 +435,7 @@ class BoltzmannLinear(BotlzmannBase):
             index_heating = self._heat_index(
                 self.v1, n_heating, heating_weight_index)
             self.v1[index_heating] = thermal_distribution(
-                n_heating, self.m1, heating_temperature, self.rng
+                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape
             )
 
             self.rng.shuffle(index)
@@ -482,6 +493,7 @@ class BoltzmannMixture(BoltzmannLinear):
         thin=1,
         burnin=1000,
         reaction_rate_per_step=0.3,
+        heating_shape=None
     ):
         r"""
         Compute the model.
@@ -504,6 +516,9 @@ class BoltzmannMixture(BoltzmannLinear):
             number of skip
         burnin: integer:
             number of samples to be used to make the system in the equilibrium
+        heating_shape: optional. None or float
+            Controls the velocity distribution of generated radicals. 
+            If None or 1, the heating shape is Maxwellian. 
         """
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
@@ -559,7 +574,7 @@ class BoltzmannMixture(BoltzmannLinear):
             index_heating = self._heat_index(
                 self.v1, n_heating, heating_weight_index)
             self.v1[index_heating] = thermal_distribution(
-                n_heating, self.m1, heating_temperature, self.rng
+                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape
             )
 
             # collision with the other particles
