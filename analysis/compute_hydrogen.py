@@ -8,7 +8,7 @@ sys.path.append("../")
 import core
 
 
-def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
+def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2, heating_shape=None):
     diffsigma = core.TheoreticalCrossSections(
         xr.load_dataarray('../crosssections/H-H2/elastic_differential.nc'),
         effective_mass=2.0 / 3.0
@@ -21,7 +21,7 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
     m2 = 2.0
     # T = 3.0e-2
     heating_temperature = 3.0
-
+    
     if mixture == 0:
         model = core.BoltzmannLinear(
             n=n, m1=m1, m2=m2, T=T, differential_crosssection=diffsigma,
@@ -44,6 +44,7 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
         nsamples=nsample,
         thin=3,
         burnin=nsample * 3,
+        heating_shape=heating_shape,
         **args
     )
     vsq = np.sum(result ** 2, axis=-1) * m1 / 2
@@ -88,6 +89,7 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
             "heating_rate": heating_rate,
             "heating_temperature": heating_temperature,
             "mixture": mixture,
+            "heating_shape": 1 if heating_shape is None else heating_shape,
             "time": ("sample", time),
         },
         attrs={"type": "coulomb"},
@@ -95,30 +97,31 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
     return result.mean('sample')
 
 
-heating_rates = np.logspace(-2, 2, 41)
+heating_rates = np.logspace(-2, 1, 28)
 mixture_ratios = np.logspace(-3, 2, 31)[::-1]
 mixture_ratios = np.concatenate([[0], 1 / (1 + mixture_ratios)])
 T2 = [1e-4, 0.03]
 
-histograms_all2 = []
-for T in T2:
-    histograms_all = []
-    for heating_rate in heating_rates:
-        print("working at {}".format(heating_rate))
+histograms_all = []
+for heating_shape in [None, 3]:
+    for T in T2:
+        for heating_rate in heating_rates:
+            print("working at {}".format(heating_rate))
 
-        def compute(mixture_ratio):
-            return compute_mixture(
-                heating_rate,
-                mixture_ratio,
-                n=10000,
-                nsample=1000,
-                T=T,
-                # mixture_ratio, n=1000, nsample=10, T=T,
-            )
+            def compute(mixture_ratio):
+                return compute_mixture(
+                    heating_rate,
+                    mixture_ratio,
+                    n=10000, nsample=1000,
+                    # n=1000, nsample=100,
+                    T=T,
+                    heating_shape=heating_shape,
+                )
 
-        with Pool(8) as p:
-            histograms = p.map(compute, mixture_ratios)
-        histograms_all.append(xr.concat(histograms, dim="mixture"))
-    histograms_all2.append(xr.concat(histograms_all, dim="heating_rate"))
-histograms_all2 = xr.concat(histograms_all2, dim="T")
-histograms_all2.to_netcdf("hydrogen.nc")
+            with Pool(8) as p:
+                histograms = p.map(compute, mixture_ratios)
+            histograms_all.append(xr.concat(histograms, dim="mixture"))
+print(xr.concat(histograms_all, dim="i"))
+histograms_all = xr.concat(histograms_all, dim="i").set_index(
+    i=['heating_shape', 'T', 'heating_rate']).unstack('i')
+histograms_all.to_netcdf("hydrogen.nc")

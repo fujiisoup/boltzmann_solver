@@ -152,7 +152,7 @@ def test_thermal_distribution():
     m = 3.0
     T = 3.0
     rng = np.random.RandomState(0)
-    v_expected = core.thermal_distribution(n, m, T, rng, shape=None)
+    v_expected = core.thermal_distribution(n, m, T, rng)
     v_actual = core.thermal_distribution(n, m, T, rng, shape=1)
     # moments should be close
     v_scale = np.std(v_expected, axis=0)
