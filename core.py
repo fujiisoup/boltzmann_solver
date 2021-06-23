@@ -325,7 +325,8 @@ def thermal_distribution(n, m, T, rng, shape=None):
         return v
     else:
         v_abs = np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
-        return v * v_abs**(shape - 1) * 4 / (3 + shape)
+        v1 = rng.gamma(scale=np.sqrt(2 * T / m), shape=shape, size=(n, 1))
+        return v / v_abs * v1
 
 
 class BotlzmannBase:
@@ -333,7 +334,6 @@ class BotlzmannBase:
         self.n = int(n / 2) * 2
         self.rng = np.random.RandomState(0)
         self.diffsigma = differential_crosssection
-        self.index = np.arange(n)
         self.T = T
 
     def _heat_index(self, v, n_heating, heating_weight_index):

@@ -87,13 +87,13 @@ def compute_mixture(heating_rate, mixture, n=3000, nsample=1000, T=3.0e-2):
         },
         attrs={"type": "coulomb"},
     )
-    return result
+    return result.mean('sample')
 
 
-heating_rates = np.logspace(-2, 1, 7)
-mixture_ratios = np.logspace(-3, 2, 31)[::-1]
+heating_rates = np.logspace(-4, 0, 9)
+mixture_ratios = np.logspace(-3, 2, 11)[::-1]
 mixture_ratios = np.concatenate([[0], 1 / (1 + mixture_ratios)])
-T2 = [1e-4, 0.03]
+T2 = [1e-4]
 
 histograms_all2 = []
 for T in T2:
@@ -111,7 +111,7 @@ for T in T2:
                 # mixture_ratio, n=1000, nsample=10, T=T,
             )
 
-        with Pool(8) as p:
+        with Pool(10) as p:
             histograms = p.map(compute, mixture_ratios)
         histograms_all.append(xr.concat(histograms, dim="mixture"))
     histograms_all2.append(xr.concat(histograms_all, dim="heating_rate"))
