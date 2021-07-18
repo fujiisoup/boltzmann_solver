@@ -151,7 +151,7 @@ class HardSphereCrossSections:
         self.lam = lam
 
     def total_crosssection(self, v):
-        return v**(-self.lam)
+        return v**self.lam
 
     def scattering_angle(self, u_rel, r):
         """
@@ -272,10 +272,10 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
     # compute the scattering
     # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
     rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
-    v1_cm = rot.apply(u1_cm)
-    v2_cm = rot.apply(u2_cm)
-    v1 = v1_cm + vel_cm * restitution_coef
-    v2 = v2_cm + vel_cm * restitution_coef
+    v1_cm = rot.apply(u1_cm) * restitution_coef
+    v2_cm = rot.apply(u2_cm) * restitution_coef
+    v1 = v1_cm + vel_cm
+    v2 = v2_cm + vel_cm
     # compute if this scattering happens during dt
     flag = flag_scattering(u1, u2, rng, differential_crosssection, density, dt)
     v1 = np.where(flag, v1, u1)
@@ -726,7 +726,8 @@ class BoltzmannDissipative(BotlzmannBase):
             u1 = self.v[index[:nhalf]]
             u2 = self.v[index[nhalf:]]
             v1, v2, _ = scattering(
-                self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt
+                self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt, 
+                restitution_coef=restitution_coef
             )
             self.v[index[:nhalf]] = v1
             self.v[index[nhalf:]] = v2
