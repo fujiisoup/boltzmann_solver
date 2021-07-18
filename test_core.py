@@ -229,10 +229,10 @@ def test_boltzman_dissipative():
     model = core.BoltzmannDissipative(
         n=1000, m=1, differential_crosssection=differential_crosssection
     )
-    result, _ = model.compute(0.01, 100.0, 0.1, nsamples=1000, thin=1, burnin=5000)
+    result, _ = model.compute(0.01, 100.0, 0.95, nsamples=1000, thin=1, burnin=5000)
 
     vsq = np.sum(result ** 2, axis=-1)
-
+    '''
     import matplotlib.pyplot as plt
 
     _ = plt.hist(np.log10(vsq[:330].ravel()), bins=51, alpha=0.5)
@@ -241,7 +241,7 @@ def test_boltzman_dissipative():
     plt.yscale('log')
     plt.grid()
     plt.show()
-
+    '''
 
 def test_boltzman_mixture():
     differential_crosssection = core.DifferentialCrossSection(

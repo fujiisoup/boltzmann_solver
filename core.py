@@ -238,7 +238,7 @@ def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     return (probability > uni)[:, np.newaxis]
 
 
-def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=1.0):
+def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=None):
     r"""
     Compute the collision process among two particles
 
@@ -272,8 +272,12 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
     # compute the scattering
     # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
     rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
-    v1_cm = rot.apply(u1_cm) * restitution_coef
-    v2_cm = rot.apply(u2_cm) * restitution_coef
+    v1_cm = rot.apply(u1_cm)
+    v2_cm = rot.apply(u2_cm)
+    if restitution_coef is not None:
+        rate =  1 - (1 - restitution_coef) * np.cos(theta)  # if theta=pi, no dissipation
+        v1_cm *= rate[:, np.newaxis]
+        v2_cm *= rate[:, np.newaxis]
     v1 = v1_cm + vel_cm
     v2 = v2_cm + vel_cm
     # compute if this scattering happens during dt
