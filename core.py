@@ -143,6 +143,23 @@ class IsotropicCrossSections:
         return r * np.pi
         
 
+class HardSphereCrossSections:
+    """
+    Crosssection for the hard sphere
+    """
+    def __init__(self, lam, *args, **kwargs):
+        self.lam = lam
+
+    def total_crosssection(self, v):
+        return v**(-self.lam)
+
+    def scattering_angle(self, u_rel, r):
+        """
+        differential cross section is proportional to ~sin(theta)
+        """
+        return np.arccos(1 - 2 * r)
+
+
 class TheoreticalCrossSections:
     """
     Differential crosssection based on theory
@@ -221,7 +238,7 @@ def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     return (probability > uni)[:, np.newaxis]
 
 
-def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
+def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=1.0):
     r"""
     Compute the collision process among two particles
 
@@ -257,8 +274,8 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt):
     rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
     v1_cm = rot.apply(u1_cm)
     v2_cm = rot.apply(u2_cm)
-    v1 = v1_cm + vel_cm
-    v2 = v2_cm + vel_cm
+    v1 = v1_cm + vel_cm * restitution_coef
+    v2 = v2_cm + vel_cm * restitution_coef
     # compute if this scattering happens during dt
     flag = flag_scattering(u1, u2, rng, differential_crosssection, density, dt)
     v1 = np.where(flag, v1, u1)
@@ -603,6 +620,119 @@ class BoltzmannMixture(BoltzmannLinear):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v1))
+                times.append(time)
+            time += dt
+        return np.array(histogram), times
+
+
+class BoltzmannDissipative(BotlzmannBase):
+    def __init__(
+        self,
+        n,
+        m,
+        differential_crosssection,
+        T=1.0,
+        seed=0,
+    ):
+        r"""
+        n: integer
+            number of particles to be traced
+        m: float
+            mass of the particles
+
+        T: float
+            temperature of the heavier particles. In the unit of energy
+        """
+        super().__init__(n, differential_crosssection, T=T, seed=seed)
+        self.m = m
+        self.v = thermal_distribution(n, m, T, self.rng)
+
+    def compute(
+        self,
+        heating_rate,
+        heating_temperature,
+        restitution_coef,
+        heating_weight_index=None,
+        nsamples=1000,
+        thin=1,
+        burnin=1000,
+        reaction_rate_per_step=0.3,
+        heating_shape=None
+    ):
+        r"""
+        Compute the model.
+
+        Parameters
+        ----------
+        heating_rate: float
+            rate of the additional heating for the particle 1
+        heating_temperature: float
+            temperature of the additional heating.
+        restitutison_coef: float in [1, 0]
+            restitutison rate of the collision.
+            If restitutison == 1, then pure elastic collision is assumed
+        heating_weight_index:
+            choose the heated particle depending on E^{index}
+
+        nsamples: integer
+            number of samples to be stored
+        thin: integer
+            number of skip
+        burnin: integer:
+            number of samples to be used to make the system in the equilibrium
+        heating_shape: optional. None or float
+            Controls the velocity distribution of generated radicals. 
+            If None or 1, the heating shape is Maxwellian. 
+        """
+        index = np.arange(self.n)
+        nhalf = int(self.n / 2)
+
+        histogram = []
+        heating_rate = heating_rate
+
+        time = 0.0
+        times = []
+        for i in range(-burnin, nsamples * thin):
+            if i in [-burnin, 0]:
+                # compute the time step
+                # compute dt from the collisions among the test particles
+                u1 = self.v[index[:nhalf]]
+                u2 = self.v[index[nhalf:]]
+                dt = optimize_dt(
+                    u1,
+                    u2,
+                    self.diffsigma,
+                    1,
+                    self.rng,
+                    change_rate=1.2,
+                    reaction_rate_per_step=reaction_rate_per_step,
+                )
+                n_heating_rate = dt * heating_rate * self.n
+
+            if n_heating_rate < 10:  # if small use the probabilistic method
+                n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
+            else:
+                n_heating = np.minimum(int(n_heating_rate), self.n)
+
+            # randomly choose the heated particles
+            index_heating = self._heat_index(
+                self.v, n_heating, heating_weight_index)
+            self.v[index_heating] = thermal_distribution(
+                n_heating, self.m, heating_temperature, self.rng, shape=heating_shape
+            )
+
+            # collision among the test particles
+            self.rng.shuffle(index)
+            u1 = self.v[index[:nhalf]]
+            u2 = self.v[index[nhalf:]]
+            v1, v2, _ = scattering(
+                self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt
+            )
+            self.v[index[:nhalf]] = v1
+            self.v[index[nhalf:]] = v2
+
+            if i > 0 and i % thin == 0:
+                histogram.append(np.copy(self.v))
                 times.append(time)
             time += dt
         return np.array(histogram), times

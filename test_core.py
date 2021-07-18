@@ -146,7 +146,7 @@ def test_optimize_dt():
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
 
-def test_thermal_distribution():
+def _test_thermal_distribution():
     # make sure shape=1 is the same with shape=None
     n = 1000
     m = 3.0
@@ -221,6 +221,26 @@ def test_boltzman_mixture_with_zero_density():
     hist_linear = np.histogram(vsq.ravel(), bins=v_bins)[0] / v_size
 
     assert np.allclose(hist_mixture, hist_linear, rtol=0.2)
+
+
+def test_boltzman_dissipative():
+    differential_crosssection = core.HardSphereCrossSections(lam=1.0)
+
+    model = core.BoltzmannDissipative(
+        n=1000, m=1, differential_crosssection=differential_crosssection
+    )
+    result, _ = model.compute(0.01, 100.0, 0.1, nsamples=1000, thin=1, burnin=5000)
+
+    vsq = np.sum(result ** 2, axis=-1)
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.hist(np.log10(vsq[:330].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[330:660].ravel()), bins=51, alpha=0.5)
+    _ = plt.hist(np.log10(vsq[660:].ravel()), bins=51, alpha=0.5)
+    plt.yscale('log')
+    plt.grid()
+    plt.show()
 
 
 def test_boltzman_mixture():
