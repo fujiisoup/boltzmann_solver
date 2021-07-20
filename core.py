@@ -165,18 +165,40 @@ class TheoreticalCrossSections:
     Differential crosssection based on theory
     """
 
-    def __init__(self, data, effective_mass=1.0, m=10000):
+    def __init__(
+        self, data, effective_mass=1.0, m=10000, 
+        extrapolate_modes=(-3, 'log')
+    ):
         """
         data: xr.dataarray
             dimensions should be ['energy', 'angle'] 
         effective_mass: m * M / (m + M)
         """
-        self._data = (
+        import xarray as xr
+        
+        _data = (
             data.sortby("energy")
             .sortby("angle")
             .transpose("energy", "angle")
             .isel(angle=slice(None, -1))
         )
+
+        if extrapolate_modes[0] != 'log':
+            # using power scaling
+            data0 = _data.isel(energy=0)
+            scale = 0.1
+            data0['energy'] = data0['energy'] * scale
+            data0 = data0 * scale**extrapolate_modes[0]
+            _data = xr.concat([data0, _data], dim='energy')            
+        elif extrapolate_modes[1] != 'log':
+            # using power scaling
+            data0 = _data.isel(energy=0)
+            scale = 0.1
+            data0['energy'] = data0['energy'] * scale
+            data0 = data0 * scale**extrapolate_modes[0]
+            _data = xr.concat([_data, data0], dim='energy') 
+        self._data = _data.transpose("energy", "angle")
+
         self.effective_mass = effective_mass
         self.m = m
         self._prepare()
@@ -275,7 +297,7 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
     v1_cm = rot.apply(u1_cm)
     v2_cm = rot.apply(u2_cm)
     if restitution_coef is not None:
-        rate =  1 - (1 - restitution_coef) * np.cos(theta)  # if theta=pi, no dissipation
+        rate =  1 - (1 - restitution_coef) * (np.cos(theta) + 1) / 2  # if theta=pi, no dissipation
         v1_cm *= rate[:, np.newaxis]
         v2_cm *= rate[:, np.newaxis]
     v1 = v1_cm + vel_cm
