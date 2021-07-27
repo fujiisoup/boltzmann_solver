@@ -167,7 +167,7 @@ class TheoreticalCrossSections:
 
     def __init__(
         self, data, effective_mass=1.0, m=10000, 
-        extrapolate_modes=(-3, 'log')
+        extrapolate_modes=(-1/3, 'log')
     ):
         """
         data: xr.dataarray
@@ -186,16 +186,16 @@ class TheoreticalCrossSections:
         if extrapolate_modes[0] != 'log':
             # using power scaling
             data0 = _data.isel(energy=0)
-            scale = 0.1
+            scale = 0.01
             data0['energy'] = data0['energy'] * scale
             data0 = data0 * scale**extrapolate_modes[0]
             _data = xr.concat([data0, _data], dim='energy')            
         elif extrapolate_modes[1] != 'log':
             # using power scaling
-            data0 = _data.isel(energy=0)
-            scale = 0.1
+            data0 = _data.isel(energy=-1)
+            scale = 100
             data0['energy'] = data0['energy'] * scale
-            data0 = data0 * scale**extrapolate_modes[0]
+            data0 = data0 * scale**extrapolate_modes[1]
             _data = xr.concat([_data, data0], dim='energy') 
         self._data = _data.transpose("energy", "angle")
 
