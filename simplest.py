@@ -27,7 +27,7 @@ class SimplestBotlzmann:
         self.n = int(n / 2) * 2
         self.rng = np.random.RandomState(0)
         
-    def is_collide(self, E, beta, energy_min=None, energy_max=None):
+    def is_collide(self, E1, E2, beta=None, delta=None, energy_min=None, energy_max=None):
         """
         Find if particles collide
 
@@ -43,21 +43,29 @@ class SimplestBotlzmann:
         1d array of bool: will collide if True
         """
         if beta is None:
-            return np.full_like(E, True, dtype=bool)
+            return np.full_like(E1, True, dtype=bool)
 
+        E = E1 + E2
         if energy_min is None:
-            energy_min = np.min(E)
+            energy_min = np.min(E1 + E2)
         if energy_max is None:
-            energy_max = np.max(E)
-        if beta > 0:
-            rate = (E / energy_max)**beta
+            energy_max = np.max(E1 + E2)
+        
+        if delta is None:
+            coef = 1.0
         else:
-            rate = (E / energy_min)**beta
+            coef = (E1 * E2 * 0.25 / E**2)**delta
+
+        if beta > 0:
+            rate = (E / energy_max)**beta * coef
+        else:
+            rate = (E / energy_min)**beta * coef
         return self.rng.uniform(size=E.shape) < rate
+
 
     def compute(
         self, heating_rate, heating_temperature, 
-        eta, d=None, beta=None,
+        eta, d=None, beta=None, delta=None,
         nsamples=1000, thin=1, burnin=1000
     ):
         r"""
@@ -90,7 +98,7 @@ class SimplestBotlzmann:
             index_cascade = index[:n_cascade]
             if beta is not None:
                 is_collide = self.is_collide(
-                    self.E[index_cascade], beta, energy_min, heating_temperature)
+                    self.E[index_cascade], energy_min, beta, delta, energy_min, heating_temperature)
                 index_cascade = index_cascade[is_collide]
             decay = self.rng.uniform(size=len(index_cascade))
             self.E[index_cascade] = self.E[index_cascade] * decay
@@ -109,7 +117,7 @@ class SimplestBotlzmann:
 
             if beta is not None:
                 is_collide = self.is_collide(
-                    K / 2, beta, energy_min, heating_temperature)
+                    E1, E2, beta, delta, energy_min * 2, heating_temperature * 2)
                 index1 = index1[is_collide]
                 index2 = index2[is_collide]
                 ratio = ratio[is_collide]
@@ -127,7 +135,7 @@ class SimplestBotlzmann:
 class SimplestDilute(SimplestBotlzmann):
     def compute(
         self, heating_rate, heating_temperature, 
-        eta, d=None, beta=None,
+        eta, d=None, beta=None, delta=None,
         nsamples=1000, thin=1, burnin=1000
     ):
         r"""
@@ -169,7 +177,7 @@ class SimplestDilute(SimplestBotlzmann):
                 ratio = self.rng.beta(d+1, d+1, size=nhalf)
 
             if beta is not None:
-                is_collide = self.is_collide(K, beta)
+                is_collide = self.is_collide(K, beta, delta)
                 index1 = index1[is_collide]
                 index2 = index2[is_collide]
                 ratio = ratio[is_collide]
