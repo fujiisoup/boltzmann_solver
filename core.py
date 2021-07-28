@@ -133,11 +133,11 @@ class IsotropicCrossSections:
     """
     Crosssection for Isotropic scattering
     """
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, lam=-1/3, *args, **kwargs):
+        self.lam = lam
 
     def total_crosssection(self, v):
-        return v**(-1/3)
+        return v**self.lam
 
     def scattering_angle(self, u_rel, r):
         return r * np.pi
