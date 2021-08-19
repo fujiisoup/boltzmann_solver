@@ -16,6 +16,42 @@ def thermal_distribution(n, T, rng):
     return rng.exponential(scale=T, size=n)
 
 
+def gaussian_distribution(n, d, T, rng):
+    r"""
+    Construct the thermal velocity distribution in d-dimension
+
+    Parameters
+    ----------
+    n: integer
+        number of particles
+    d: integer
+        number of dimensions
+    T: float
+        temperature
+    rng: np.random.RandomState
+    """
+    return rng.randn(n, d) * np.sqrt(T)
+
+
+def angular_distribution(n, d, rng):
+    r"""
+    Make the uniform distribution along the angular direction,
+    but along the radial direction, the size should be 1
+
+    Parameters
+    ----------
+    n: integer
+        number of particles
+    d: integer
+        number of dimensions
+    T: float
+        temperature
+    rng: np.random.RandomState
+    """
+    v = rng.randn(n, d)
+    return v / np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
+
+
 class SimplestBotlzmann:
     def __init__(self, n, seed=0):
         """
@@ -188,5 +224,71 @@ class SimplestDilute(SimplestBotlzmann):
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.E))
+
+        return np.array(histogram)
+
+
+class Levy(SimplestBotlzmann):
+    """
+    A simple model to mimic the generalized central limit theorem
+
+    Parameters
+    ----------
+    n: integer. 
+        Number of particles to be tracked.
+    """
+
+    def compute(
+        self, heating_rate, dillute_coef, d, 
+        heating_temperature=1, beta=None, delta=None,
+        nsamples=1000, thin=1, burnin=1000
+    ):
+        r"""
+        Compute the Boltzmann equation
+        with beta = 0, it reduces to the central limit theorem
+
+        d: statistical weight as a function of E
+        beta: energy dependence of the collision
+        """
+        # initial distribution
+        energy_min = heating_temperature * 1e-5
+        self.v = gaussian_distribution(
+            self.n, d, heating_temperature * 1e-4, self.rng
+        )
+
+        index = np.arange(self.n)
+        histogram = []
+        nhalf = int(self.n / 2)
+
+        n_heating = int(self.n * heating_rate)
+
+        for i in range(-burnin, nsamples * thin):
+            # randomly choose the heated particles
+            self.rng.shuffle(index)
+            index_heating = index[:n_heating]
+            self.v[index_heating] = gaussian_distribution(
+                n_heating, d, heating_temperature, self.rng)
+
+            # randomly choose the collision
+            self.rng.shuffle(index)
+            index1 = index[:nhalf]
+            index2 = index[nhalf:]
+            v1 = self.v[index1]
+            v2 = self.v[index2]
+            v = (v1 - v2)
+
+            if beta is not None:
+                K = np.sqrt(np.sum(v**2, axis=-1))
+                is_collide = self.is_collide(K, beta, delta)
+                index1 = index1[is_collide]
+                index2 = index2[is_collide]
+                v = v[is_collide]
+
+            v = v / np.sqrt(2 / dillute_coef)
+            self.v[index1] = v
+            self.v[index2] = v
+
+            if i > 0 and i % thin == 0:
+                histogram.append(np.copy(self.v))
 
         return np.array(histogram)
