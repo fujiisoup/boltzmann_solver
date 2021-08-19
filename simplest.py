@@ -260,11 +260,16 @@ class Levy(SimplestBotlzmann):
         histogram = []
         nhalf = int(self.n / 2)
 
-        n_heating = int(self.n * heating_rate)
+        n_heating_rate = self.n * heating_rate
 
         for i in range(-burnin, nsamples * thin):
             # randomly choose the heated particles
             self.rng.shuffle(index)
+            if n_heating_rate > 10:
+                n_heating = int(n_heating_rate)
+            else:
+                n_heating = np.minimum(self.rng.poisson(n_heating_rate), self.n)
+
             index_heating = index[:n_heating]
             self.v[index_heating] = gaussian_distribution(
                 n_heating, d, heating_temperature, self.rng)
