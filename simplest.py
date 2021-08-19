@@ -241,7 +241,7 @@ class Levy(SimplestBotlzmann):
     def compute(
         self, heating_rate, dillute_coef, d, 
         heating_temperature=1, beta=None, delta=None,
-        nsamples=1000, thin=1, burnin=1000
+        nsamples=1000, thin=1, burnin=1000, mix_angular=False,
     ):
         r"""
         Compute the Boltzmann equation
@@ -285,8 +285,15 @@ class Levy(SimplestBotlzmann):
                 v = v[is_collide]
 
             v = v / np.sqrt(2 / dillute_coef)
-            self.v[index1] = v
-            self.v[index2] = v
+            # randomize along the angular direction
+            n = len(index1)
+            if mix_angular:
+                v = np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
+                self.v[index1] = v * angular_distribution(n, d, self.rng)
+                self.v[index2] = v * angular_distribution(n, d, self.rng)
+            else:
+                self.v[index1] = v
+                self.v[index2] = v
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v))
