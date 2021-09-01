@@ -133,7 +133,7 @@ class IsotropicCrossSections:
     """
     Crosssection for Isotropic scattering
     """
-    def __init__(self, lam=-1/3, *args, **kwargs):
+    def __init__(self, lam=-2/3, *args, **kwargs):
         self.lam = lam
 
     def total_crosssection(self, v):
@@ -260,7 +260,7 @@ def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     return (probability > uni)[:, np.newaxis]
 
 
-def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=None):
+def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=None, restrict_2d=False):
     r"""
     Compute the collision process among two particles
 
@@ -274,7 +274,8 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
         An instance of DifferentialCrossSection
     ft: scalar
         Considered timestep
-    
+    restrict_2d: boolean
+        if True, the scattering occurs only on the x-y plane
     Returns
     -------
     v1, v2: post-collision velocities
@@ -292,8 +293,11 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
     u_rel = np.sqrt(np.sum(u1 ** 2 + u2 ** 2, axis=-1))
     theta = differential_crosssection.scattering_angle(u_rel, rng.uniform(0, 1, size=n))
     # compute the scattering
-    # scattering angle in center-of-mass coordinate. For particle 1. For particle 2, multiply -1.
-    rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
+    # scattering angle in center-of-mass coordinate for particle 1. For particle 2, multiply -1.
+    if restrict_2d:
+        rot = Rotation.from_euler("Z", theta)
+    else:
+        rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
     v1_cm = rot.apply(u1_cm)
     v2_cm = rot.apply(u2_cm)
     if restitution_coef is not None:
@@ -347,7 +351,7 @@ def optimize_dt(
     return dt_init
 
 
-def thermal_distribution(n, m, T, rng, shape=None):
+def thermal_distribution(n, m, T, rng, shape=None, restrict_2d=False):
     r"""
     Construct the thermal velocity distribution
 
@@ -362,14 +366,22 @@ def thermal_distribution(n, m, T, rng, shape=None):
     rng: np.random.RandomState
     shape: optional, float
         Assuming Gamma-like distribution with shape parameter
+    restrict_2d: boolean
+        if True, the scattering occurs only on the x-y plane
     """
     v = rng.randn(n, 3) * np.sqrt(T / m)
+    if restrict_2d:
+        v[:, -1] = 0  # z-component is always zero
+
     if shape is None:
         return v
     else:
         v_abs = np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
         v1 = rng.gamma(scale=np.sqrt(2 * T / m), shape=shape, size=(n, 1))
-        return v / v_abs * v1
+        v = v / v_abs * v1
+        if restrict_2d:
+            v[:, -1] = 0  # z-component is always zero
+        return v
 
 
 class BotlzmannBase:
@@ -423,7 +435,8 @@ class BoltzmannLinear(BotlzmannBase):
         thin=1,
         burnin=1000,
         reaction_rate_per_step=0.3,
-        heating_shape=None
+        heating_shape=None,
+        restrict_2d=False
     ):
         r"""
         Compute the model.
@@ -449,6 +462,9 @@ class BoltzmannLinear(BotlzmannBase):
         """
         index = np.arange(self.n)
         histogram = []
+        if restrict_2d:
+            self.v1[:, -1] = 0
+            self.v2[:, -1] = 0
 
         time = 0.0
         times = []
@@ -478,18 +494,21 @@ class BoltzmannLinear(BotlzmannBase):
             index_heating = self._heat_index(
                 self.v1, n_heating, heating_weight_index)
             self.v1[index_heating] = thermal_distribution(
-                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape
+                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape,
+                restrict_2d=restrict_2d,
             )
 
             self.rng.shuffle(index)
             u1 = self.v1[index]
             u2 = self.v2[index]
             v1, _, _ = scattering(
-                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt
+                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, 1.0, dt,
+                restrict_2d=restrict_2d,
             )
             self.v1[index] = v1
             # overwrite v2 by thermal distribution
-            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
+            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng,
+                restrict_2d=restrict_2d,)
 
             if i > 0 and i % thin == 0:
                 histogram.append(np.copy(self.v1))
@@ -536,7 +555,8 @@ class BoltzmannMixture(BoltzmannLinear):
         thin=1,
         burnin=1000,
         reaction_rate_per_step=0.3,
-        heating_shape=None
+        heating_shape=None,
+        restrict_2d=False,
     ):
         r"""
         Compute the model.
@@ -565,6 +585,9 @@ class BoltzmannMixture(BoltzmannLinear):
         """
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
+        if restrict_2d:
+            self.v1[:, -1] = 0
+            self.v2[:, -1] = 0
 
         histogram = []
         # see below for the reason of the multiplication of 0.5
@@ -601,7 +624,7 @@ class BoltzmannMixture(BoltzmannLinear):
                     test_density,
                     self.rng,
                     change_rate=1.2,
-                    reaction_rate_per_step=reaction_rate_per_step,
+                    reaction_rate_per_step=reaction_rate_per_step
                 )
 
                 # determine dt from the dominant collision
@@ -617,7 +640,8 @@ class BoltzmannMixture(BoltzmannLinear):
             index_heating = self._heat_index(
                 self.v1, n_heating, heating_weight_index)
             self.v1[index_heating] = thermal_distribution(
-                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape
+                n_heating, self.m1, heating_temperature, self.rng, shape=heating_shape,
+                restrict_2d=restrict_2d
             )
 
             # collision with the other particles
@@ -625,11 +649,13 @@ class BoltzmannMixture(BoltzmannLinear):
             u1 = self.v1[index]
             u2 = self.v2[index]
             v1, _, _ = scattering(
-                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, bath_density, dt
+                self.m1, u1, self.m2, u2, self.rng, self.diffsigma, bath_density, dt,
+                restrict_2d=restrict_2d
             )
             self.v1[index] = v1
             # overwrite v2 by thermal distribution
-            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng)
+            self.v2 = thermal_distribution(self.n, self.m2, self.T, self.rng,
+                restrict_2d=restrict_2d)
 
             # collision among the test particles
             # Here, we changed the velocity of two particles per one collision. 
@@ -639,7 +665,8 @@ class BoltzmannMixture(BoltzmannLinear):
             u1 = self.v1[index[:nhalf]]
             u2 = self.v1[index[nhalf:]]
             v1, v2, _ = scattering(
-                self.m1, u1, self.m1, u2, self.rng, self.diffsigma_test, test_density, dt
+                self.m1, u1, self.m1, u2, self.rng, self.diffsigma_test, test_density, dt,
+                restrict_2d=restrict_2d
             )
             self.v1[index[:nhalf]] = v1
             self.v1[index[nhalf:]] = v2
@@ -683,7 +710,8 @@ class BoltzmannDissipative(BotlzmannBase):
         thin=1,
         burnin=1000,
         reaction_rate_per_step=0.3,
-        heating_shape=None
+        heating_shape=None,
+        restrict_2d=False,
     ):
         r"""
         Compute the model.
@@ -712,6 +740,8 @@ class BoltzmannDissipative(BotlzmannBase):
         """
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
+        if restrict_2d:
+            self.v[:, -1] = 0
 
         histogram = []
         heating_rate = heating_rate
@@ -744,7 +774,8 @@ class BoltzmannDissipative(BotlzmannBase):
             index_heating = self._heat_index(
                 self.v, n_heating, heating_weight_index)
             self.v[index_heating] = thermal_distribution(
-                n_heating, self.m, heating_temperature, self.rng, shape=heating_shape
+                n_heating, self.m, heating_temperature, self.rng, shape=heating_shape,
+                restrict_2d=restrict_2d
             )
 
             # collision among the test particles
@@ -753,7 +784,8 @@ class BoltzmannDissipative(BotlzmannBase):
             u2 = self.v[index[nhalf:]]
             v1, v2, _ = scattering(
                 self.m, u1, self.m, u2, self.rng, self.diffsigma, 1.0, dt, 
-                restitution_coef=restitution_coef
+                restitution_coef=restitution_coef,
+                restrict_2d=restrict_2d
             )
             self.v[index[:nhalf]] = v1
             self.v[index[nhalf:]] = v2

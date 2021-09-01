@@ -86,7 +86,8 @@ def test_scattering_plot(diffsigma):
 
 
 @pytest.mark.parametrize(("m1", "m2"), [(1.0, 1.0), (10.0, 1.0)])
-def test_scattering_conservation(m1, m2):
+@pytest.mark.parametrize("restrict_2d", [False, True])
+def test_scattering_conservation(m1, m2, restrict_2d):
     diffsigma = core.DifferentialCrossSection(
         lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
     )
@@ -95,7 +96,10 @@ def test_scattering_conservation(m1, m2):
     rng = np.random.RandomState(0)
     u1 = rng.randn(n, 3)
     u2 = rng.randn(n, 3)
-
+    if restrict_2d:
+        u1[:, -1] = 0
+        u2[:, -1] = 0
+        
     v1, v2, n_collision = core.scattering(
         m1=m1,
         u1=u1,
@@ -105,6 +109,7 @@ def test_scattering_conservation(m1, m2):
         differential_crosssection=diffsigma,
         density=1,
         dt=1e4,
+        restrict_2d=restrict_2d
     )
 
     # total energy should be the conserved
@@ -116,6 +121,58 @@ def test_scattering_conservation(m1, m2):
     after = m1 * v1 + m2 * v2
     assert np.allclose(before, after)
     assert n_collision == n
+
+    if restrict_2d:
+        assert np.all(v1[:, -1] == 0)
+        assert np.all(v2[:, -1] == 0)
+
+
+@pytest.mark.parametrize("restrict_2d", [False, True])
+def test_scattering_heavy_limit(restrict_2d):
+    diffsigma = core.DifferentialCrossSection(
+        lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]
+    )
+    # random velicity
+    n = 300
+    rng = np.random.RandomState(0)
+    m1 = 1
+    m2 = 1e6  # assumin very large mass for m2
+    u1 = rng.randn(n, 3) / np.sqrt(m1)
+    u2 = rng.randn(n, 3) / np.sqrt(m2)
+    if restrict_2d:
+        u1[:, -1] = 0
+        u2[:, -1] = 0
+
+    v1, v2, n_collision = core.scattering(
+        m1=m1,
+        u1=u1,
+        m2=m2,
+        u2=u2,
+        rng=rng,
+        differential_crosssection=diffsigma,
+        density=1,
+        dt=1e8,
+        restrict_2d=restrict_2d
+    )
+    # make sure many of the particles change the velocity
+    assert n_collision > n // 2
+
+    # total energy should be the conserved
+    before = 0.5 * m1 * np.sum(u1 ** 2, axis=-1) + 0.5 * m2 * np.sum(u2 ** 2, axis=-1)
+    after = 0.5 * m1 * np.sum(v1 ** 2, axis=-1) + 0.5 * m2 * np.sum(v2 ** 2, axis=-1)
+    assert np.allclose(before, after)
+    # total momentum should be conserved
+    before = m1 * u1 + m2 * u2
+    after = m1 * v1 + m2 * v2
+    assert np.allclose(before, after)
+    assert n_collision == n
+
+    # the velocity of particle 2 should not change very much
+    assert np.all(np.sqrt(np.sum((u2 - v2)**2, axis=-1)) < 1e-2 / np.sqrt(m2))
+
+    if restrict_2d:
+        assert np.all(v1[:, -1] == 0)
+        assert np.all(v2[:, -1] == 0)
 
 
 def test_optimize_dt():
@@ -265,6 +322,26 @@ def test_boltzman_mixture():
     plt.grid()
     plt.show()
     """
+
+
+def test_boltzman_mixture2d():
+    differential_crosssection = core.IsotropicCrossSections(lam=-1.0)
+
+    model = core.BoltzmannMixture(
+        n=1000, m1=1.0, m2=1.0, differential_crosssection=differential_crosssection
+    )
+    result, _ = model.compute(0.01, 100.0, 0.5, nsamples=2, thin=1, burnin=0, restrict_2d=True)
+    assert (result[:, :, -1] == 0).all()
+
+
+def test_boltzman_dissipative():
+    differential_crosssection = core.IsotropicCrossSections(lam=-1.0)
+
+    model = core.BoltzmannDissipative(
+        n=1000, m=1.0, differential_crosssection=differential_crosssection
+    )
+    result, _ = model.compute(0.01, 100.0, 0.5, nsamples=2, thin=1, burnin=0, restrict_2d=True)
+    assert (result[:, :, -1] == 0).all()
 
 
 def test_boltzman_linear():
