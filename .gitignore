@@ -73,6 +73,8 @@ Icon*
 notebooks
 
 # computed data 
-# analysis/*.nc
+analysis
+experimental_data
 
 nohup.out
+
