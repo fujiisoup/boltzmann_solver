@@ -590,9 +590,9 @@ class BoltzmannMixture(BoltzmannLinear):
             self.v2[:, -1] = 0
 
         histogram = []
-        # see below for the reason of the multiplication of 0.5
-        test_density = mixture * 0.5
-        bath_density = 1.0 - mixture
+        # see below for the reason of the multiplication of 2.0
+        test_density = 1.0 * 2.0
+        bath_density = mixture
         # heating rate should be proportional to bath density
         heating_rate = heating_rate * bath_density
 
