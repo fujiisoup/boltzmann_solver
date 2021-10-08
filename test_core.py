@@ -324,7 +324,7 @@ def test_boltzman_mixture_with_zero_density():
     result, _ = model.compute(
         heating_rate,
         heating_temperature,
-        mixture=1e-10,
+        mixture=1e10,
         nsamples=1000,
         thin=1,
         burnin=1000,

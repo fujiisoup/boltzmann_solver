@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from scipy import interpolate, integrate, special
 from scipy.spatial.transform import Rotation
@@ -608,6 +609,10 @@ class BoltzmannMixture(BoltzmannLinear):
             Controls the velocity distribution of generated radicals. 
             If None or 1, the heating shape is Maxwellian. 
         """
+        if not hasattr(self.diffsigma, 'restrict_2d'):
+            warnings.warn('This cross section does not support restrict_2d option')
+        self.diffsigma.restrict_2d = restrict_2d
+
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
         if restrict_2d:
@@ -763,6 +768,11 @@ class BoltzmannDissipative(BotlzmannBase):
             Controls the velocity distribution of generated radicals. 
             If None or 1, the heating shape is Maxwellian. 
         """
+        # make sure restrict_2d can be used for the crosssection
+        if not hasattr(self.diffsigma, 'restrict_2d'):
+            warnings.warn('This cross section does not support restrict_2d option')
+        self.diffsigma.restrict_2d = restrict_2d
+
         index = np.arange(self.n)
         nhalf = int(self.n / 2)
         if restrict_2d:
