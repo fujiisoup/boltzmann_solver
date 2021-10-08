@@ -175,6 +175,70 @@ def test_scattering_heavy_limit(restrict_2d):
         assert np.all(v2[:, -1] == 0)
 
 
+def allclose_angle(x, y, *args, **kwargs):
+    return (
+        np.allclose(np.cos(x), np.cos(y), *args, **kwargs)
+        and 
+        np.allclose(np.sin(x), np.sin(y), *args, **kwargs)
+    )
+
+
+def test_HardSphere():
+    elastic = core.HardSphereCrossSections(lam=0)
+
+    restitution_coef = np.linspace(0, 1, 30)
+    # with theta2 = 0, go straight
+    assert allclose_angle(0, core._inelastic_scattering_angle(0, restitution_coef))
+    # with theta2 = np.pi, go backward
+    assert allclose_angle(0, core._inelastic_scattering_angle(np.pi, restitution_coef) * 2)
+
+    # with restitution_coef=1, should be elastic
+    theta2 = np.linspace(0, np.pi, 100)
+    theta_inelastic = core._inelastic_scattering_angle(theta2, restitution_coef=1)
+    assert np.allclose(theta2, theta_inelastic)
+
+
+@pytest.mark.parametrize("restrict_2d", [False, True])
+def test_inelastic_energy(restrict_2d):
+    diffsigma = core.HardSphereCrossSections(lam=0, restrict_2d=restrict_2d)
+    # random velicity
+    n = 300
+    rng = np.random.RandomState(0)
+    u1 = rng.randn(n, 3)
+    u2 = rng.randn(n, 3)
+    restitution_coef = rng.randint(0, 1, size=n)
+    if restrict_2d:
+        u1[:, -1] = 0
+        u2[:, -1] = 0
+        
+    v1, v2, n_collision = core.scattering(
+        m1=1,
+        u1=u1,
+        m2=1,
+        u2=u2,
+        rng=rng,
+        differential_crosssection=diffsigma,
+        density=1,
+        restitution_coef=0.9,
+        dt=1e4,
+        restrict_2d=restrict_2d
+    )
+
+    # total energy should be the conserved or smaller
+    before = 0.5 * np.sum(u1 ** 2, axis=-1) + 0.5 * np.sum(u2 ** 2, axis=-1)
+    after = 0.5 * np.sum(v1 ** 2, axis=-1) + 0.5 * np.sum(v2 ** 2, axis=-1)
+    assert np.all(before >= after)
+    # total momentum should be conserved
+    before = u1 + u2
+    after = v1 + v2
+    assert np.allclose(before, after)
+    assert n_collision == n
+
+    if restrict_2d:
+        assert np.all(v1[:, -1] == 0)
+        assert np.all(v2[:, -1] == 0)
+
+
 def test_optimize_dt():
     diffsigma = core.DifferentialCrossSection(
         lam=0, legendre_coefs=[0, 0, 0, 0, 0, 0, 0, 1]

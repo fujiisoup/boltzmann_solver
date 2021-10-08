@@ -147,17 +147,21 @@ class HardSphereCrossSections:
     """
     Crosssection for the hard sphere
     """
-    def __init__(self, lam, *args, **kwargs):
+    def __init__(self, lam, restrict_2d=False, *args, **kwargs):
         self.lam = lam
+        self.restrict_2d = restrict_2d
 
     def total_crosssection(self, v):
         return v**self.lam
 
-    def scattering_angle(self, u_rel, r):
+    def scattering_angle(self, u_rel, r, restrict_2d=False):
         """
         differential cross section is proportional to ~sin(theta)
         """
-        return np.arccos(1 - 2 * r)
+        if self.restrict_2d:
+            return 2 * np.arccos(r)
+        else:
+            return 2 * np.arccos(np.sqrt(r))
 
 
 class TheoreticalCrossSections:
@@ -260,6 +264,17 @@ def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     return (probability > uni)[:, np.newaxis]
 
 
+def _inelastic_scattering_angle(theta2, restitution_coef):
+    """
+    Given the scattering angle theta2 for the elastic case,
+    returns the actual scattering angle for the inelastic case
+    """
+    return np.arctan2(
+            restitution_coef * np.sin(theta2),
+            1 - restitution_coef + restitution_coef * np.cos(theta2),
+    )
+
+
 def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=None, restrict_2d=False):
     r"""
     Compute the collision process among two particles
@@ -292,18 +307,28 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
     # relative velocity
     u_rel = np.sqrt(np.sum(u1 ** 2 + u2 ** 2, axis=-1))
     theta = differential_crosssection.scattering_angle(u_rel, rng.uniform(0, 1, size=n))
+
     # compute the scattering
+    if restitution_coef is not None:
+        theta2 = theta  # scattering angle if elastic
+        theta = _inelastic_scattering_angle(theta2, restitution_coef)
+        # velocity reduction rate
+        rate = np.sqrt(
+            (restitution_coef * np.sin(theta2))**2 + 
+            (1 - restitution_coef + restitution_coef * np.cos(theta2))**2
+        )[..., np.newaxis]
+        u1_cm *= rate
+        u2_cm *= rate
+
     # scattering angle in center-of-mass coordinate for particle 1. For particle 2, multiply -1.
     if restrict_2d:
         rot = Rotation.from_euler("Z", theta)
     else:
         rot = Rotation.from_euler("ZX", np.array([phi, theta]).T)
+    
     v1_cm = rot.apply(u1_cm)
     v2_cm = rot.apply(u2_cm)
-    if restitution_coef is not None:
-        rate =  1 - (1 - restitution_coef) * (np.cos(theta) + 1) / 2  # if theta=pi, no dissipation
-        v1_cm *= rate[:, np.newaxis]
-        v2_cm *= rate[:, np.newaxis]
+
     v1 = v1_cm + vel_cm
     v2 = v2_cm + vel_cm
     # compute if this scattering happens during dt
