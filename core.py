@@ -160,9 +160,9 @@ class HardSphereCrossSections:
         differential cross section is proportional to ~sin(theta)
         """
         if self.restrict_2d:
-            return 2 * np.arccos(r)
+            return np.pi - 2 * np.arcsin(r)
         else:
-            return 2 * np.arccos(np.sqrt(r))
+            return np.pi - 2 * np.arcsin(np.sqrt(r))
 
 
 class TheoreticalCrossSections:
@@ -265,15 +265,19 @@ def flag_scattering(u1, u2, rng, differential_crosssection, density, dt):
     return (probability > uni)[:, np.newaxis]
 
 
-def _inelastic_scattering_angle(theta2, restitution_coef):
+def _inelastic_scattering_angle(phi, restitution_coef):
     """
-    Given the scattering angle theta2 for the elastic case,
+    Given the scattering angle phi for the elastic case,
     returns the actual scattering angle for the inelastic case
     """
-    return np.arctan2(
-            restitution_coef * np.sin(theta2),
-            1 - restitution_coef + restitution_coef * np.cos(theta2),
-    )
+    cos_theta = np.sin(phi / 2)
+    return np.arccos(
+        np.clip(
+            -cos_theta * restitution_coef
+            / (np.sqrt(1 + (restitution_coef**2 - 1) * cos_theta) + 1e-20)  # add a jitter
+            , -1, 1
+        )
+    ) - (np.pi - phi) / 2
 
 
 def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, restitution_coef=None, restrict_2d=False):
@@ -311,12 +315,11 @@ def scattering(m1, u1, m2, u2, rng, differential_crosssection, density, dt, rest
 
     # compute the scattering
     if restitution_coef is not None:
-        theta2 = theta  # scattering angle if elastic
-        theta = _inelastic_scattering_angle(theta2, restitution_coef)
+        phi = theta  # scattering angle if elastic
+        theta = _inelastic_scattering_angle(phi, restitution_coef)
         # velocity reduction rate
         rate = np.sqrt(
-            (restitution_coef * np.sin(theta2))**2 + 
-            (1 - restitution_coef + restitution_coef * np.cos(theta2))**2
+            1 + (restitution_coef**2 - 1) * (1 - np.cos(phi)) / 2
         )[..., np.newaxis]
         u1_cm *= rate
         u2_cm *= rate

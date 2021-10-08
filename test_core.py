@@ -186,11 +186,12 @@ def allclose_angle(x, y, *args, **kwargs):
 def test_HardSphere():
     elastic = core.HardSphereCrossSections(lam=0)
 
-    restitution_coef = np.linspace(0, 1, 30)
-    # with theta2 = 0, go straight
+    restitution_coef = np.linspace(1e-2, 1, 30)
+    # with phi = 0, go straight
     assert allclose_angle(0, core._inelastic_scattering_angle(0, restitution_coef))
-    # with theta2 = np.pi, go backward
-    assert allclose_angle(0, core._inelastic_scattering_angle(np.pi, restitution_coef) * 2)
+    # with phi = np.pi, go backward
+    print(core._inelastic_scattering_angle(np.pi, restitution_coef) - np.pi)
+    assert allclose_angle(np.pi, core._inelastic_scattering_angle(np.pi, restitution_coef), atol=1e-6)
 
     # with restitution_coef=1, should be elastic
     theta2 = np.linspace(0, np.pi, 100)
@@ -199,14 +200,15 @@ def test_HardSphere():
 
 
 @pytest.mark.parametrize("restrict_2d", [False, True])
-def test_inelastic_energy(restrict_2d):
+# @pytest.mark.parametrize("restrict_2d", [False])
+@pytest.mark.parametrize("restitution_coef", [0, 0.5, 1.0])
+def test_inelastic_energy(restrict_2d, restitution_coef):
     diffsigma = core.HardSphereCrossSections(lam=0, restrict_2d=restrict_2d)
     # random velicity
-    n = 300
+    n = 10000
     rng = np.random.RandomState(0)
     u1 = rng.randn(n, 3)
     u2 = rng.randn(n, 3)
-    restitution_coef = rng.randint(0, 1, size=n)
     if restrict_2d:
         u1[:, -1] = 0
         u2[:, -1] = 0
@@ -219,15 +221,16 @@ def test_inelastic_energy(restrict_2d):
         rng=rng,
         differential_crosssection=diffsigma,
         density=1,
-        restitution_coef=0.9,
+        restitution_coef=restitution_coef,
         dt=1e4,
         restrict_2d=restrict_2d
     )
+    assert n_collision == n
 
     # total energy should be the conserved or smaller
     before = 0.5 * np.sum(u1 ** 2, axis=-1) + 0.5 * np.sum(u2 ** 2, axis=-1)
     after = 0.5 * np.sum(v1 ** 2, axis=-1) + 0.5 * np.sum(v2 ** 2, axis=-1)
-    assert np.all(before >= after)
+    assert np.all(before + 1e-10 >= after)
     # total momentum should be conserved
     before = u1 + u2
     after = v1 + v2
@@ -238,6 +241,36 @@ def test_inelastic_energy(restrict_2d):
         assert np.all(v1[:, -1] == 0)
         assert np.all(v2[:, -1] == 0)
 
+    # the energy-loss distribution of an individual particles
+    before = np.sum(u1**2, axis=-1)
+    after = np.sum(v1**2, axis=-1)
+    dE = (before - after)
+    dE_actual = np.mean(dE) / np.mean(before)
+    if restrict_2d:
+        dE_expected = (1 - restitution_coef**2) / 2 * 2 / 3
+    else:
+        dE_expected = (1 - restitution_coef**2) / 4
+    assert np.allclose(dE_actual, dE_expected, atol=0.03)
+    
+    # the energy-loss distribution of colliding particle pairs
+    before = np.sum(u1**2 + u2**2, axis=-1)
+    after = np.sum(v1**2 + v2**2, axis=-1)
+    dE = (before - after) / before
+    dE_actual = np.mean(dE)
+    if restrict_2d:
+        dE_expected = (1 - restitution_coef**2) / 2 * 2 / 3
+    else:
+        dE_expected = (1 - restitution_coef**2) / 4
+    assert np.allclose(dE_actual, dE_expected, atol=0.003)
+
+    '''
+    import matplotlib.pyplot as plt
+    plt.hist(dE)
+    plt.axvline(dE_expected, ls='--', color='k')
+    plt.axvline(dE_actual, ls='--', color='r')
+    plt.title('r: {}, '.format(restitution_coef) + ('2d' if restrict_2d else '3d'))
+    plt.show()
+    '''
 
 def test_optimize_dt():
     diffsigma = core.DifferentialCrossSection(
