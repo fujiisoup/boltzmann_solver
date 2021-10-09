@@ -201,7 +201,7 @@ def test_HardSphere():
 
 @pytest.mark.parametrize("restrict_2d", [False, True])
 # @pytest.mark.parametrize("restrict_2d", [False])
-@pytest.mark.parametrize("restitution_coef", [0, 0.5, 1.0])
+@pytest.mark.parametrize("restitution_coef", [0, 0.5, 0.9, 0.99])
 def test_inelastic_energy(restrict_2d, restitution_coef):
     diffsigma = core.HardSphereCrossSections(lam=0, restrict_2d=restrict_2d)
     # random velicity
@@ -226,6 +226,9 @@ def test_inelastic_energy(restrict_2d, restitution_coef):
         restrict_2d=restrict_2d
     )
     assert n_collision == n
+    if restrict_2d:
+        assert np.allclose(v1[:, -1], 0)
+        assert np.allclose(v2[:, -1], 0)
 
     # total energy should be the conserved or smaller
     before = 0.5 * np.sum(u1 ** 2, axis=-1) + 0.5 * np.sum(u2 ** 2, axis=-1)

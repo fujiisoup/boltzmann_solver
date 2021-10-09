@@ -623,8 +623,7 @@ class BoltzmannMixture(BoltzmannLinear):
             self.v2[:, -1] = 0
 
         histogram = []
-        # see below for the reason of the multiplication of 2.0
-        test_density = 1.0 * 2.0
+        test_density = 1.0
         bath_density = mixture
         # heating rate should be proportional to bath density
         heating_rate = heating_rate * bath_density
@@ -691,9 +690,6 @@ class BoltzmannMixture(BoltzmannLinear):
                 restrict_2d=restrict_2d)
 
             # collision among the test particles
-            # Here, we changed the velocity of two particles per one collision. 
-            # Therefore, we double count the crosssection, or density.
-            # The multiplication of 0.5 in the test density compensates this effect.
             self.rng.shuffle(index)
             u1 = self.v1[index[:nhalf]]
             u2 = self.v1[index[nhalf:]]
