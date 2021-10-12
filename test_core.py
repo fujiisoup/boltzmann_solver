@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from numpy.lib.function_base import diff
 import pytest
 import xarray as xr
 from . import core
@@ -274,6 +275,55 @@ def test_inelastic_energy(restrict_2d, restitution_coef):
     plt.title('r: {}, '.format(restitution_coef) + ('2d' if restrict_2d else '3d'))
     plt.show()
     '''
+
+@pytest.mark.parametrize(
+    "diffsigma",
+    [
+        core.IsotropicCrossSections(lam=-1),
+        core.HardSphereCrossSections(lam=-1),
+    ],
+)
+def test_crosssection(diffsigma):
+    # random velicity
+    n = 100000
+    rng = np.random.RandomState(0)
+    r = rng.uniform(0, 1, size=n)
+    theta = diffsigma.scattering_angle(1, r)
+    
+    # moementum transfer
+    actual = np.mean((1 - np.cos(theta)))
+    assert np.allclose(actual, diffsigma.momentum_transfer(1), rtol=0.01)
+
+    # viscosity
+    actual = np.mean(np.sin(theta)**2)
+    assert np.allclose(actual, diffsigma.viscosity(1), rtol=0.01)
+
+
+def _test_viscosity_hardsphere():
+    diffsigma = core.HardSphereCrossSections(lam=0)
+    # random velicity
+    n = 1000000
+    rng = np.random.RandomState(0)
+    r = rng.uniform(0, 1, size=n)
+    theta = diffsigma.scattering_angle(0, r)
+    
+    actual = np.mean(np.sin(theta)**2)
+    assert np.allclose(actual, diffsigma.viscosity(0), rtol=0.01)
+
+    # inelastic collision
+    # rcoef = np.logspace(-3, 0, num=21, base=10)
+    rcoef = np.linspace(0, 1, num=21)
+    actuals = []
+    for r in rcoef:
+        phi = core._inelastic_scattering_angle(theta, r)
+        actuals.append(np.mean(np.sin(phi)**2))
+    expected = diffsigma.viscosity(0, restitution_coef=rcoef)
+    """
+    import matplotlib.pyplot as plt
+    plt.plot(rcoef, np.array(actuals))
+    plt.plot(rcoef, expected, '--')
+    plt.show()
+    """
 
 def test_optimize_dt():
     diffsigma = core.DifferentialCrossSection(

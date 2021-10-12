@@ -143,6 +143,20 @@ class IsotropicCrossSections:
     def scattering_angle(self, u_rel, r):
         return r * np.pi
         
+    def viscosity(self, u_rel, restitution_coef=None):
+        """
+        analytical viscosity cross section
+        """
+        if restitution_coef is not None:
+            raise NotImplementedError
+        return 1 / 2 * u_rel**self.lam
+
+    def momentum_transfer(self, u_rel, restitution_coef=None):
+        """Returns momentum crosssection """
+        if restitution_coef is not None:
+            raise NotImplementedError
+        return u_rel**self.lam
+
 
 class HardSphereCrossSections:
     """
@@ -163,6 +177,29 @@ class HardSphereCrossSections:
             return np.pi - 2 * np.arcsin(r)
         else:
             return np.pi - 2 * np.arcsin(np.sqrt(r))
+
+    def viscosity(self, u_rel, restitution_coef=None):
+        """
+        analytical viscosity cross section
+        """
+        if restitution_coef is None:
+            if self.restrict_2d:
+                raise NotImplementedError
+            else: 
+                return 2 / 3 * u_rel**self.lam
+        if self.restrict_2d:
+            raise NotImplementedError
+        else:
+            return 1 / 2 + restitution_coef / 6  
+            # TODO find better approximation
+
+    def momentum_transfer(self, u_rel, restitution_coef=None):
+        """Returns momentum crosssection """
+        if restitution_coef is not None:
+            raise NotImplementedError
+        if self.restrict_2d:
+            raise NotImplementedError
+        return 1.0 * u_rel**self.lam
 
 
 class TheoreticalCrossSections:
