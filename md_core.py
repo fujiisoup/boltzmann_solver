@@ -5,10 +5,13 @@ import numpy as np
 from .core import scattering
 
 
-def get_colliding_time(x_rel, v_rel):
+def get_colliding_time(x_rel, v_rel, collision_flag=None):
     """
     Find the colliding time, which is the time to the nearest approach, 
     based on relative position and velocities
+
+    collision_flag: True if the two particle will collide. 
+        It should be computed based on the collision crosssection 
     """
     vsq = -np.sum(v_rel * v_rel, axis=-1, keepdims=True)
     v_inv = v_rel / vsq  # inverse of the velocity but with the same direction
@@ -127,7 +130,7 @@ class Particles:
             raise NotImplementedError
 
 
-def choose_coliding_particles(x, v):
+def choose_colliding_particles(x, v):
     """
     Choose a pair of coliding particles
 
@@ -137,4 +140,8 @@ def choose_coliding_particles(x, v):
     relative_v = v - v[:, np.newaxis]
     coliding_time = relative_x / relative_v
     coliding_time = np.where(coliding_time > 0, coliding_time, np.inf)
+    coliding_time = np.min(coliding_time, axis=-1)
     # find the colliding particle pairs in the nearest future
+    print(coliding_time)
+    index = np.unravel_index(np.argmin(coliding_time), shape=coliding_time.shape)
+    return index
