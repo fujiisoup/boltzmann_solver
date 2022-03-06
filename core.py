@@ -431,7 +431,7 @@ def thermal_distribution(n, m, T, rng, shape=None, restrict_2d=False):
         temperature
     rng: np.random.RandomState
     shape: optional, float
-        Assuming Gamma-like distribution with shape parameter
+        Assuming Gamma-like distribution with shape parameter. If shape=1.5, it should be a Maxwell distribution
     restrict_2d: boolean
         if True, the scattering occurs only on the x-y plane
     """
@@ -442,9 +442,9 @@ def thermal_distribution(n, m, T, rng, shape=None, restrict_2d=False):
     if shape is None:
         return v
     else:
-        v_abs = np.sqrt(np.sum(v**2, axis=-1, keepdims=True))
-        v1 = rng.gamma(scale=np.sqrt(2 * T / m), shape=shape, size=(n, 1))
-        v = v / v_abs * v1
+        v2_abs = np.sum(v**2, axis=-1, keepdims=True)
+        v1 = rng.gamma(scale=2 * T / m, shape=shape, size=(n, 1))
+        v = v * np.sqrt(v1 / v2_abs / (shape / 1.5))
         if restrict_2d:
             v[:, -1] = 0  # z-component is always zero
         return v
