@@ -38,3 +38,27 @@ def test_colliding_time_known_value():
     assert actual.shape == (2, 2)
     assert np.allclose(actual[0, 1], expected)
     assert np.allclose(actual[1, 0], expected)
+
+
+def test_wall():
+    # particles in a box
+    wall = md_core.LargeWall(
+        x=np.array([
+            [1, 0, 0], [-1, 0, 0],
+            [0, 1, 0], [0, -1, 0],
+            [0, 0, 1], [0, 0, -1],
+        ]),
+        n=np.array([
+            [-1, 0, 0], [1, 0, 0],
+            [0, -1, 0], [0, 1, 0],
+            [0, 0, -1], [0, 0, 1],]), 
+        restitution_coef=0.9
+    )
+    particle = md_core.Particles(
+        x=np.zeros((1, 3), float),
+        v=np.ones((1, 3), float),
+        wall=wall, radius=0.01,
+    )
+    particle.run1step()
+
+    

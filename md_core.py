@@ -85,13 +85,13 @@ class Particles:
     def __init__(self, x, v, wall, radius):
         self.x = x  # shape [particle index, dimension]
         self.v = v
+        self._radius = radius
         self._initialize()
 
         # collision with walls
         self.wall = wall
         self.wall_colliding_time = wall.get_colliding_time(x, v)
         self.accum_time = 0
-        self._radius = radius
 
     def _initialize(self):
         x_rel = self.x - self.x[:, np.newaxis]
