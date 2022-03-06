@@ -5,19 +5,28 @@ import numpy as np
 from .core import scattering
 
 
-def get_colliding_time(x_rel, v_rel, collision_flag=None):
+def get_colliding_time(x_rel, v_rel, radius=None):
     """
     Find the colliding time, which is the time to the nearest approach, 
     based on relative position and velocities
 
-    collision_flag: True if the two particle will collide. 
-        It should be computed based on the collision crosssection 
+    radius: radius of particles.
+        Should be a float or array of floats
+        If radius is given, also returns the square of the normalized impact parameter
     """
     vsq = -np.sum(v_rel * v_rel, axis=-1, keepdims=True)
     v_inv = v_rel / vsq  # inverse of the velocity but with the same direction
     colliding_time = np.sum(x_rel * v_inv, axis=-1)
-    return np.where(colliding_time > 0, colliding_time, np.inf)
+    
+    colliding_time = np.where(colliding_time > 0, colliding_time, np.inf)
+    if radius is None:
+        return colliding_time
 
+    # compute impact parameters
+    dx = x_rel + v_rel * colliding_time[:, np.newaxis]
+    impact_parameter2 = np.sum(dx**2, axis=-1) / radius**2
+    return np.where(impact_parameter2 <= 1.0, colliding_time, np.inf)
+    
 
 class LargeWall:
     """
@@ -66,24 +75,31 @@ class LargeWall:
         v: velocity of particle
         """
         v_ref = np.dot(v @ self.n[i])
-        return v + 2 * v_ref * self.n[i]
+        return v + (1 + self.restitution_coef[i]) * v_ref * self.n[i]
 
 
 class Particles:
     """
     Class for point-like particles
     """
-    def __init__(self, x, v, wall):
+    def __init__(self, x, v, wall, radius):
         self.x = x  # shape [particle index, dimension]
         self.v = v
-        x_rel = self.x - self.x[:, np.newaxis]
-        v_rel = self.v - self.v[:, np.newaxis]
-        self.colliding_time = get_colliding_time(x_rel, v_rel)
+        self._initialize()
 
         # collision with walls
         self.wall = wall
         self.wall_colliding_time = wall.get_colliding_time(x, v)
         self.accum_time = 0
+        self._radius = radius
+
+    def _initialize(self):
+        x_rel = self.x - self.x[:, np.newaxis]
+        v_rel = self.v - self.v[:, np.newaxis]
+        self.colliding_time = get_colliding_time(x_rel, v_rel, self.radius(v_rel))
+
+    def radius(self, v_rel):
+        return self._radius
 
     def update_v(self, i, v):
         """
@@ -98,7 +114,8 @@ class Particles:
         self.v[i] = v
         x_rel = self.x[i] - self.x
         v_rel = self.v[i] - self.v
-        colliding_time = get_colliding_time(x_rel, v_rel) + self.accum_time
+        colliding_time = get_colliding_time(x_rel, v_rel, self.radius(v_rel))
+        colliding_time = colliding_time + self.accum_time
         self.colliding_time[i] = colliding_time
         self.colliding_time[:, i] = colliding_time
         # collision with walls
@@ -121,27 +138,28 @@ class Particles:
             dt = t_next - self.accum_time
             self.update_x(dt)
             # make a collision here
-            raise NotImplementedError
+            v1, v2 = self.collision(
+                self.x[ip], self.x[jp], self.v[ip], self.v[jp]
+            )
+            self.v[ip], self.v[jp] = v1, v2
 
-        else:  # t_next_wall < t_next:
+        else:  # t_next_wall < t_next:  wall collision
             dt = t_next_wall - self.accum_time
             self.update_x(dt)
             # make a collision with wall here
-            raise NotImplementedError
+            self.v[iw] = self.wall.reflect([jw], self.v[iw])
 
-
-def choose_colliding_particles(x, v):
-    """
-    Choose a pair of coliding particles
-
-    Returns an index (i, j) and time to colide.
-    """
-    relative_x = x - x[:, np.newaxis]
-    relative_v = v - v[:, np.newaxis]
-    coliding_time = relative_x / relative_v
-    coliding_time = np.where(coliding_time > 0, coliding_time, np.inf)
-    coliding_time = np.min(coliding_time, axis=-1)
-    # find the colliding particle pairs in the nearest future
-    print(coliding_time)
-    index = np.unravel_index(np.argmin(coliding_time), shape=coliding_time.shape)
-    return index
+    def collision(self, x1, x2, v1, v2):
+        """
+        Compute the post-collision velocities of particle 1 and 2.
+        
+        Parameters
+        ----------
+        x1, x2: positions of the particle 1 and 2
+        v1, v2: velocities of the particle 1 and 2
+        
+        Returns
+        -------
+        v1, v2: new velocities of the particle 1 and 2
+        """
+        return v1, v2

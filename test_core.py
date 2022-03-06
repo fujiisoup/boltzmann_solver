@@ -203,14 +203,14 @@ def test_optimize_dt():
     assert np.allclose(dt_results, np.mean(dt_results), rtol=change_rate * 10)
 
 
-def _test_thermal_distribution():
+def test_thermal_distribution():
     # make sure shape=1 is the same with shape=None
-    n = 1000
+    n = 10000
     m = 3.0
     T = 30.0
     rng = np.random.RandomState(0)
     v_expected = core.thermal_distribution(n, m, T, rng)
-    v_actual = core.thermal_distribution(n, m, T, rng, shape=1)
+    v_actual = core.thermal_distribution(n, m, T, rng, shape=1.5)
     # moments should be close
     v_scale = np.std(v_expected, axis=0)
     for i in [1, 2, 4, 6]:
@@ -218,13 +218,13 @@ def _test_thermal_distribution():
         m_actual = np.mean(v_actual**i, axis=0)**(1/i)
         assert np.allclose(
             m_expected / v_scale, m_actual / v_scale, 
-            atol=0.2
+            atol=0.1
         )
 
-@pytest.mark.parametrize("shape", [2, 3, 4])
-def _test_thermal_distribution_shape(shape):
+@pytest.mark.parametrize("shape", [1.5, 3, 4])
+def test_thermal_distribution_shape(shape):
     # make sure shape=1 is the same with shape=None
-    n = 1000
+    n = 10000
     m = 3.0
     T = 30.0
     rng = np.random.RandomState(0)
@@ -234,9 +234,8 @@ def _test_thermal_distribution_shape(shape):
     m_actual = np.mean(v_actual**2, axis=0)
 
     # moments should be close
-    v_scale = np.std(v_expected, axis=0)
     assert np.allclose(
-        np.sqrt(m_expected) / v_scale, np.sqrt(m_actual) / v_scale, 
+        np.sqrt(m_expected), np.sqrt(m_actual), 
         atol=0.1
     )
 

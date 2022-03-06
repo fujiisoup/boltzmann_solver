@@ -38,12 +38,3 @@ def test_colliding_time_known_value():
     assert actual.shape == (2, 2)
     assert np.allclose(actual[0, 1], expected)
     assert np.allclose(actual[1, 0], expected)
-
-
-def test_colliding_particles():
-    # with known values
-    x = np.array([[0, 0, 0], [0, 0, 1.0], [100, 100, 100]])
-    v = np.array([[0, 0, 1e-10], [0, 0, -10.0], [0, 0, 0]])
-    # test choose colliding particles
-    i, j = md_core.choose_colliding_particles(x, v)
-    assert np.all(np.sort([i, j]) == [0, 1])
